@@ -1,4 +1,7 @@
 import SwiftUI
+import os
+
+private let log = Logger(subsystem: "cl.enocfalcon.vibeprompt", category: "AppState")
 
 enum AppStatus: Equatable {
     case idle
@@ -39,7 +42,18 @@ final class AppState {
     private let hotkeyManager = HotkeyManager()
 
     init() {
+        Task { await requestPermissionsIfNeeded() }
         setupHotkey()
+    }
+
+    private func requestPermissionsIfNeeded() async {
+        guard !AudioRecorder.hasPermission() else { return }
+        let granted = await AudioRecorder.requestPermission()
+        if !granted {
+            await MainActor.run {
+                status = .error("Permiso de micrófono denegado")
+            }
+        }
     }
 
     private func setupHotkey() {
@@ -54,14 +68,46 @@ final class AppState {
     }
 
     func startRecording() {
-        guard status == .idle || status == .success else { return }
-        recorder.startRecording()
-        status = .recording
+        guard status == .idle || status == .success else {
+            log.warning("startRecording ignorado — estado actual: \(self.status.label)")
+            return
+        }
+        let deviceUID = config.selectedMicrophoneUID.isEmpty ? nil : config.selectedMicrophoneUID
+        #if DEBUG
+        log.info("Iniciando grabación — serverURL: \(self.config.serverURL), apiKey: \(self.config.apiKey.prefix(8))..., mic: \(deviceUID ?? "default")")
+        #endif
+        do {
+            try recorder.startRecording(deviceUID: deviceUID)
+            status = .recording
+            #if DEBUG
+            log.info("Grabando...")
+            #endif
+        } catch {
+            log.error("Error al iniciar grabación: \(error.localizedDescription)")
+            status = .error(error.localizedDescription)
+        }
     }
 
     func stopAndTranscribe() {
-        guard status == .recording else { return }
-        let audioData = recorder.stopRecording()
+        guard status == .recording else {
+            log.warning("stopAndTranscribe ignorado — estado actual: \(self.status.label)")
+            return
+        }
+        let audioData: Data
+        do {
+            audioData = try recorder.stopRecording()
+        } catch {
+            log.error("Error al detener grabación: \(error.localizedDescription)")
+            status = .error(error.localizedDescription)
+            Task { @MainActor in
+                try? await Task.sleep(for: .seconds(3))
+                if case .error = status { status = .idle }
+            }
+            return
+        }
+        #if DEBUG
+        log.info("Grabación detenida — \(audioData.count) bytes de audio")
+        #endif
         status = .transcribing
 
         Task { @MainActor in
@@ -71,14 +117,21 @@ final class AppState {
                     serverURL: config.serverURL,
                     apiKey: config.apiKey
                 )
+                #if DEBUG
+                log.info("Transcripción recibida: \"\(response.text.prefix(80))\"")
+                #endif
                 lastTranscription = response.text
                 if config.autoPaste && !response.text.isEmpty {
+                    #if DEBUG
+                    log.info("Pegando texto...")
+                    #endif
                     PasteService.paste(response.text)
                 }
                 status = .success
                 try? await Task.sleep(for: .seconds(2))
                 if status == .success { status = .idle }
             } catch {
+                log.error("Error en transcripción: \(error.localizedDescription)")
                 status = .error(error.localizedDescription)
                 try? await Task.sleep(for: .seconds(3))
                 if case .error = status { status = .idle }

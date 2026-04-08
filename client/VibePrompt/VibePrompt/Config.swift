@@ -14,17 +14,25 @@ enum HotkeyMode: String, CaseIterable {
 
 @Observable
 final class AppConfig {
-    @ObservationIgnored
-    @AppStorage("serverURL") var serverURL: String = "http://localhost:8420"
+    var serverURL: String = UserDefaults.standard.string(forKey: "serverURL") ?? "http://localhost:8420" {
+        didSet { UserDefaults.standard.set(serverURL, forKey: "serverURL") }
+    }
 
-    @ObservationIgnored
-    @AppStorage("apiKey") var apiKey: String = ""
+    var apiKey: String = UserDefaults.standard.string(forKey: "apiKey") ?? "" {
+        didSet { UserDefaults.standard.set(apiKey, forKey: "apiKey") }
+    }
 
-    @ObservationIgnored
-    @AppStorage("autoPaste") var autoPaste: Bool = true
+    var autoPaste: Bool = UserDefaults.standard.object(forKey: "autoPaste") as? Bool ?? true {
+        didSet { UserDefaults.standard.set(autoPaste, forKey: "autoPaste") }
+    }
 
-    @ObservationIgnored
-    @AppStorage("hotkeyModeRaw") var hotkeyModeRaw: String = HotkeyMode.pushToTalk.rawValue
+    var selectedMicrophoneUID: String = UserDefaults.standard.string(forKey: "selectedMicrophoneUID") ?? "" {
+        didSet { UserDefaults.standard.set(selectedMicrophoneUID, forKey: "selectedMicrophoneUID") }
+    }
+
+    var hotkeyModeRaw: String = UserDefaults.standard.string(forKey: "hotkeyModeRaw") ?? HotkeyMode.pushToTalk.rawValue {
+        didSet { UserDefaults.standard.set(hotkeyModeRaw, forKey: "hotkeyModeRaw") }
+    }
 
     var hotkeyMode: HotkeyMode {
         get { HotkeyMode(rawValue: hotkeyModeRaw) ?? .pushToTalk }

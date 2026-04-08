@@ -1,4 +1,7 @@
 import Foundation
+import os
+
+private let log = Logger(subsystem: "cl.enocfalcon.vibeprompt", category: "TranscriptionService")
 
 struct TranscribeResponse: Codable {
     let text: String
@@ -16,13 +19,13 @@ struct TranscribeResponse: Codable {
 
 enum TranscriptionError: LocalizedError {
     case invalidURL
-    case httpError(Int)
+    case httpError(Int, String)
     case decodingError(String)
 
     var errorDescription: String? {
         switch self {
         case .invalidURL: "URL del servidor inválida."
-        case .httpError(let code): "Error HTTP \(code)."
+        case .httpError(let code, let body): "Error HTTP \(code): \(body)"
         case .decodingError(let msg): "Error al decodificar respuesta: \(msg)"
         }
     }
@@ -35,48 +38,74 @@ final class TranscriptionService {
         apiKey: String,
         language: String? = nil
     ) async throws -> TranscribeResponse {
+        #if DEBUG
+        log.info("POST \(serverURL)/transcribe — audio: \(audioData.count) bytes, apiKey: \(apiKey.prefix(8))...")
+        #endif
+
         guard let url = URL(string: "\(serverURL)/transcribe") else {
+            log.error("URL inválida: \(serverURL)/transcribe")
             throw TranscriptionError.invalidURL
         }
 
         let boundary = "Boundary-\(UUID().uuidString)"
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
+        request.timeoutInterval = 30
         request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
         request.setValue(apiKey, forHTTPHeaderField: "X-API-Key")
 
         var body = Data()
         let crlf = "\r\n"
 
-        // Audio part
         body.append("--\(boundary)\(crlf)".data(using: .utf8)!)
         body.append("Content-Disposition: form-data; name=\"audio\"; filename=\"recording.wav\"\(crlf)".data(using: .utf8)!)
         body.append("Content-Type: audio/wav\(crlf)\(crlf)".data(using: .utf8)!)
         body.append(audioData)
         body.append(crlf.data(using: .utf8)!)
 
-        // Optional language part
         if let language {
             body.append("--\(boundary)\(crlf)".data(using: .utf8)!)
             body.append("Content-Disposition: form-data; name=\"language\"\(crlf)\(crlf)".data(using: .utf8)!)
             body.append(language.data(using: .utf8)!)
             body.append(crlf.data(using: .utf8)!)
         }
-
         body.append("--\(boundary)--\(crlf)".data(using: .utf8)!)
         request.httpBody = body
 
-        let (data, response) = try await URLSession.shared.data(for: request)
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw TranscriptionError.httpError(0)
+        #if DEBUG
+        log.info("Enviando request (\(body.count) bytes)...")
+        #endif
+
+        let (data, response) : (Data, URLResponse)
+        do {
+            (data, response) = try await URLSession.shared.data(for: request)
+        } catch {
+            log.error("Error de red: \(error.localizedDescription)")
+            throw error
         }
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            log.error("Respuesta no HTTP")
+            throw TranscriptionError.httpError(0, "No HTTP response")
+        }
+
+        let bodyStr = String(data: data, encoding: .utf8) ?? "<binary>"
+        #if DEBUG
+        log.info("HTTP \(httpResponse.statusCode) — respuesta: \(bodyStr.prefix(200))")
+        #endif
+
         guard httpResponse.statusCode == 200 else {
-            throw TranscriptionError.httpError(httpResponse.statusCode)
+            throw TranscriptionError.httpError(httpResponse.statusCode, bodyStr)
         }
 
         do {
-            return try JSONDecoder().decode(TranscribeResponse.self, from: data)
+            let decoded = try JSONDecoder().decode(TranscribeResponse.self, from: data)
+            #if DEBUG
+            log.info("Transcripción OK: \"\(decoded.text.prefix(80))\" (\(decoded.processingMs, format: .fixed(precision: 0))ms)")
+            #endif
+            return decoded
         } catch {
+            log.error("Error decodificando JSON: \(error.localizedDescription)")
             throw TranscriptionError.decodingError(error.localizedDescription)
         }
     }
