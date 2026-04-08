@@ -91,6 +91,7 @@ final class AppState {
         do {
             try recorder.startRecording(deviceUID: deviceUID)
             status = .recording
+            NSSound(named: "Tink")?.play()
         } catch {
             log.error("Error al iniciar grabación: \(error.localizedDescription)")
             status = .error(error.localizedDescription)
@@ -114,6 +115,7 @@ final class AppState {
             }
             return
         }
+        NSSound(named: "Pop")?.play()
         #if DEBUG
         log.info("Grabación detenida — \(audioData.count) bytes de audio")
         #endif
@@ -125,7 +127,8 @@ final class AppState {
             do {
                 let response = try await transcriptionService.transcribe(
                     audioData: audioData,
-                    server: server
+                    server: server,
+                    language: "es"
                 )
                 #if DEBUG
                 log.info("Transcripción: \"\(response.text.prefix(80))\"")
