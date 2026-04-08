@@ -8,7 +8,7 @@ private let log = Logger(subsystem: "cl.enocfalcon.vibeprompt", category: "Hotke
 final class HotkeyManager {
     var onStartRecording: (() -> Void)?
     var onStopRecording: (() -> Void)?
-    var mode: HotkeyMode = .pushToTalk
+    var modeProvider: () -> HotkeyMode = { .pushToTalk }
 
     private var eventTap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
@@ -44,7 +44,7 @@ final class HotkeyManager {
 
     private func registerTap() {
         #if DEBUG
-        log.info("Registrando event tap (modo: \(self.mode.rawValue))")
+        log.info("Registrando event tap (modo: \(self.modeProvider().rawValue))")
         #endif
         let mask = CGEventMask(1 << CGEventType.flagsChanged.rawValue)
         let selfPtr = Unmanaged.passUnretained(self).toOpaque()
@@ -93,7 +93,7 @@ final class HotkeyManager {
         guard let nsEvent = NSEvent(cgEvent: event) else { return }
         let isRightCmd = nsEvent.keyCode == Self.rightCommandKeyCode
 
-        switch mode {
+        switch modeProvider() {
         case .pushToTalk:
             if isRightCmd {
                 let cmdDown = flags.contains(.maskCommand)
