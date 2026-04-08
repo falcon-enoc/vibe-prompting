@@ -73,6 +73,29 @@ struct MenuBarView: View {
                         infoRow("Modelo", icon: "cpu", value: modelDisplayName)
                     }
 
+                    // Model load status
+                    HStack(spacing: 8) {
+                        Image(systemName: appState.modelLoaded ? "bolt.circle.fill" : "moon.zzz")
+                            .font(.system(size: 11))
+                            .foregroundStyle(appState.modelLoaded ? .green : .orange)
+                            .frame(width: 16)
+                        if appState.modelLoaded {
+                            Text("En memoria")
+                                .font(.system(size: 11))
+                                .foregroundStyle(.green)
+                            Text("· idle \(appState.modelIdleSeconds)s")
+                                .font(.system(size: 9))
+                                .foregroundStyle(.tertiary)
+                        } else {
+                            Text("En espera · recarga ~30s")
+                                .font(.system(size: 11))
+                                .foregroundStyle(.orange)
+                        }
+                        Spacer()
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+
                     // Add / Remove
                     HStack(spacing: 12) {
                         Button(action: {

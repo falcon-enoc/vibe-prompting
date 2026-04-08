@@ -28,6 +28,9 @@ final class AppState {
     var lastTranscription: String = ""
     var serverModels: [ServerModelInfo] = []
     var serverCurrentModel: String = ""
+    var modelLoaded: Bool = false
+    var modelIdleSeconds: Int = 0
+    var idleUnloadMinutes: Int = 10
 
     let config = AppConfig()
     let modelManager = ModelManager()
@@ -64,17 +67,29 @@ final class AppState {
     // MARK: - Server Info
 
     func refreshServerInfo() {
+        let server = config.activeServer
         Task { @MainActor in
+            // Fetch models
             do {
-                let response = try await transcriptionService.fetchModels(server: config.activeServer)
+                let response = try await transcriptionService.fetchModels(server: server)
                 serverModels = response.models
                 serverCurrentModel = response.current
             } catch {
                 #if DEBUG
-                log.warning("No se pudo consultar servidor: \(error.localizedDescription)")
+                log.warning("No se pudo consultar modelos: \(error.localizedDescription)")
                 #endif
                 serverModels = []
                 serverCurrentModel = ""
+            }
+            // Fetch health
+            do {
+                let health = try await transcriptionService.fetchHealth(server: server)
+                modelLoaded = health.modelLoaded
+                modelIdleSeconds = health.idleSeconds
+                idleUnloadMinutes = health.idleUnloadMinutes
+            } catch {
+                modelLoaded = false
+                modelIdleSeconds = 0
             }
         }
     }

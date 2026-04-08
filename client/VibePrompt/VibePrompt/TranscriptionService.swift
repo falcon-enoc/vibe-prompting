@@ -35,6 +35,21 @@ struct ModelsResponse: Codable {
     let current: String
 }
 
+struct HealthResponse: Codable {
+    let status: String
+    let modelLoaded: Bool
+    let model: String
+    let idleSeconds: Int
+    let idleUnloadMinutes: Int
+
+    enum CodingKeys: String, CodingKey {
+        case status, model
+        case modelLoaded = "model_loaded"
+        case idleSeconds = "idle_seconds"
+        case idleUnloadMinutes = "idle_unload_minutes"
+    }
+}
+
 enum TranscriptionError: LocalizedError {
     case invalidURL
     case httpError(Int, String)
@@ -50,6 +65,18 @@ enum TranscriptionError: LocalizedError {
 }
 
 final class TranscriptionService {
+
+    // MARK: - Health
+
+    func fetchHealth(server: ServerConfig) async throws -> HealthResponse {
+        guard let url = URL(string: "\(server.url)/health") else {
+            throw TranscriptionError.invalidURL
+        }
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 5
+        let (data, _) = try await URLSession.shared.data(for: request)
+        return try JSONDecoder().decode(HealthResponse.self, from: data)
+    }
 
     // MARK: - Models
 
