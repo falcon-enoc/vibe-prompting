@@ -13,6 +13,8 @@ class HealthResponse(BaseModel):
     status: str
     model_loaded: bool
     model: str
+    idle_seconds: int = 0
+    idle_unload_minutes: int = 0
 
 
 class ModelInfo(BaseModel):

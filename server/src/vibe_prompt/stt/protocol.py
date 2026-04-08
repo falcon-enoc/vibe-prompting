@@ -14,8 +14,14 @@ class TranscribeResult:
 
 
 class STTBackend(Protocol):
+    last_used: float
+
     async def transcribe(
         self, audio: np.ndarray, language: str | None = None, model: str | None = None
     ) -> TranscribeResult: ...
 
     async def health(self) -> dict: ...
+
+    def is_loaded(self) -> bool: ...
+
+    def unload(self) -> None: ...
