@@ -30,6 +30,7 @@ final class AppState {
     var modelLoaded: Bool = false
     var modelIdleSeconds: Int = 0
     var idleUnloadMinutes: Int = 10
+    var switchingModel: Bool = false
 
     let config = AppConfig()
     let modelManager = ModelManager()
@@ -64,6 +65,28 @@ final class AppState {
     }
 
     // MARK: - Server Info
+
+    func switchModel(to modelId: String) {
+        let server = config.activeServer
+        Task { @MainActor in
+            switchingModel = true
+            modelLoaded = false
+            do {
+                try await transcriptionService.switchModel(
+                    server: server,
+                    modelId: modelId,
+                    adminToken: server.apiKey
+                )
+                #if DEBUG
+                log.info("Modelo cambiado a \(modelId)")
+                #endif
+            } catch {
+                log.error("Error cambiando modelo: \(error.localizedDescription)")
+            }
+            switchingModel = false
+            refreshServerInfo()
+        }
+    }
 
     func refreshServerInfo() {
         let server = config.activeServer

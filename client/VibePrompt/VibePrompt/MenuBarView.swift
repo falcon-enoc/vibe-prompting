@@ -55,41 +55,44 @@ struct MenuBarView: View {
                             get: { appState.serverCurrentModel },
                             set: { newModel in
                                 guard newModel != appState.serverCurrentModel else { return }
-                                Task {
-                                    try? await appState.transcriptionService.switchModel(
-                                        server: config.activeServer,
-                                        modelId: newModel,
-                                        adminToken: config.activeServer.apiKey
-                                    )
-                                    appState.refreshServerInfo()
-                                }
+                                appState.switchModel(to: newModel)
                             }
                         )) {
                             ForEach(appState.serverModels.filter(\.downloaded)) { model in
                                 Text(model.name).tag(model.id)
                             }
                         }
+                        .disabled(appState.switchingModel)
                     } else {
                         infoRow("Modelo", icon: "cpu", value: modelDisplayName)
                     }
 
                     // Model load status
                     HStack(spacing: 8) {
-                        Image(systemName: appState.modelLoaded ? "bolt.circle.fill" : "moon.zzz")
-                            .font(.system(size: 11))
-                            .foregroundStyle(appState.modelLoaded ? .green : .orange)
-                            .frame(width: 16)
-                        if appState.modelLoaded {
-                            Text("En memoria")
+                        if appState.switchingModel {
+                            ProgressView()
+                                .controlSize(.small)
+                                .frame(width: 16)
+                            Text("Cargando modelo...")
                                 .font(.system(size: 11))
-                                .foregroundStyle(.green)
-                            Text("· idle \(appState.modelIdleSeconds)s")
-                                .font(.system(size: 9))
-                                .foregroundStyle(.tertiary)
+                                .foregroundStyle(.blue)
                         } else {
-                            Text("En espera · recarga ~30s")
+                            Image(systemName: appState.modelLoaded ? "bolt.circle.fill" : "moon.zzz")
                                 .font(.system(size: 11))
-                                .foregroundStyle(.orange)
+                                .foregroundStyle(appState.modelLoaded ? .green : .orange)
+                                .frame(width: 16)
+                            if appState.modelLoaded {
+                                Text("En memoria")
+                                    .font(.system(size: 11))
+                                    .foregroundStyle(.green)
+                                Text("· idle \(appState.modelIdleSeconds)s")
+                                    .font(.system(size: 9))
+                                    .foregroundStyle(.tertiary)
+                            } else {
+                                Text("En espera · recarga ~30s")
+                                    .font(.system(size: 11))
+                                    .foregroundStyle(.orange)
+                            }
                         }
                         Spacer()
                     }
