@@ -95,6 +95,56 @@ struct MenuBarView: View {
                     }
                 }
 
+                // Models section
+                settingsGroup("Modelos") {
+                    ForEach(appState.modelManager.models) { state in
+                        HStack(spacing: 8) {
+                            Image(systemName: state.downloaded ? "checkmark.circle.fill" : "arrow.down.circle")
+                                .font(.system(size: 11))
+                                .foregroundStyle(state.downloaded ? .green : .secondary)
+                                .frame(width: 16)
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text(state.model.name)
+                                    .font(.system(size: 12))
+                                Text("\(state.model.sizeMb) MB · \(state.model.backend)")
+                                    .font(.system(size: 9))
+                                    .foregroundStyle(.tertiary)
+                            }
+                            Spacer()
+                            if appState.modelManager.activeDownloadId == state.model.id {
+                                ProgressView(value: appState.modelManager.downloadProgress)
+                                    .frame(width: 50)
+                            } else if !state.downloaded {
+                                Button("Descargar") {
+                                    Task {
+                                        await appState.modelManager.download(
+                                            modelId: state.model.id,
+                                            hfToken: config.hfToken.isEmpty ? nil : config.hfToken
+                                        )
+                                    }
+                                }
+                                .buttonStyle(.borderless)
+                                .font(.system(size: 10))
+                                .foregroundStyle(.blue)
+                            } else {
+                                Button(action: { appState.modelManager.delete(modelId: state.model.id) }) {
+                                    Image(systemName: "trash")
+                                        .font(.system(size: 10))
+                                        .foregroundStyle(.red.opacity(0.6))
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
+                    }
+
+                    secureRow("HF Token", icon: "key.fill", value: Binding(
+                        get: { config.hfToken },
+                        set: { config.hfToken = $0 }
+                    ))
+                }
+
                 // Behavior section
                 settingsGroup("Comportamiento") {
                     pickerRow("Modo", icon: "command", selection: Binding(

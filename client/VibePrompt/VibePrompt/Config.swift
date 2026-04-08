@@ -85,6 +85,10 @@ final class AppConfig {
         didSet { save("transcriptionHistory", try? JSONEncoder().encode(transcriptionHistory)) }
     }
 
+    var hfToken: String = UserDefaults.standard.string(forKey: "hfToken") ?? "" {
+        didSet { UserDefaults.standard.set(hfToken, forKey: "hfToken") }
+    }
+
     // MARK: - Computed
 
     var hotkeyMode: HotkeyMode {

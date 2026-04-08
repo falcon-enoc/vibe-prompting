@@ -29,6 +29,7 @@ final class AppState {
     var serverCurrentModel: String = ""
 
     let config = AppConfig()
+    let modelManager = ModelManager()
     private let recorder = AudioRecorder()
     private let transcriptionService = TranscriptionService()
     private let hotkeyManager = HotkeyManager()
