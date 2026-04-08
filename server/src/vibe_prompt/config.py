@@ -10,4 +10,4 @@ class Settings(BaseSettings):
     ADMIN_TOKEN: str = "change-me"
     API_KEY_DB: str = "data/api_keys.db"
 
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
