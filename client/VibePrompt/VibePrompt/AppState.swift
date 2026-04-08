@@ -1,4 +1,5 @@
 import SwiftUI
+import AVFoundation
 import os
 
 private let log = Logger(subsystem: "cl.enocfalcon.vibeprompt", category: "AppState")
@@ -156,12 +157,14 @@ final class AppState {
         }
     }
 
+    // Keep a strong reference so the player doesn't get deallocated mid-playback
+    private static var soundPlayer: AVAudioPlayer?
+
     private static func playSound(_ name: String) {
-        DispatchQueue.global(qos: .userInitiated).async {
-            let process = Process()
-            process.executableURL = URL(fileURLWithPath: "/usr/bin/afplay")
-            process.arguments = ["/System/Library/Sounds/\(name).aiff"]
-            try? process.run()
-        }
+        let url = URL(fileURLWithPath: "/System/Library/Sounds/\(name).aiff")
+        guard let player = try? AVAudioPlayer(contentsOf: url) else { return }
+        soundPlayer = player
+        player.volume = 0.5
+        player.play()
     }
 }
