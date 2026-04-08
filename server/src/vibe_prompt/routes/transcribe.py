@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import re
 import shutil
 import struct
 import subprocess
@@ -8,19 +9,17 @@ import subprocess
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 import numpy as np
 
-from ..auth import require_api_key
+from ..auth import require_api_key, log_request
 from ..models import TranscribeResponse
 
 router = APIRouter()
 
 TARGET_SAMPLE_RATE = 16000
 
-# Formats handled natively (WAV PCM); everything else goes through ffmpeg
-_WAV_MAGIC = (b"RIFF", b"WAVE")
+_LANG_RE = re.compile(r"^[a-z]{2}$")
 
 
 def _parse_wav(data: bytes) -> tuple[np.ndarray, int]:
-    """Parse WAV/PCM bytes → (float32 mono, sample_rate)."""
     offset = 12
     fmt_info: dict = {}
     audio_data = b""
@@ -57,7 +56,6 @@ def _parse_wav(data: bytes) -> tuple[np.ndarray, int]:
 
 
 def _resample(audio: np.ndarray, orig_sr: int, target_sr: int) -> np.ndarray:
-    """Resample with linear interpolation (no scipy needed)."""
     if orig_sr == target_sr:
         return audio
     target_len = int(len(audio) / orig_sr * target_sr)
@@ -69,18 +67,17 @@ def _resample(audio: np.ndarray, orig_sr: int, target_sr: int) -> np.ndarray:
 
 
 def _decode_with_ffmpeg(audio_bytes: bytes) -> np.ndarray:
-    """Use ffmpeg to decode any audio format → float32 mono 16kHz."""
     if not shutil.which("ffmpeg"):
         raise RuntimeError("ffmpeg not found. Install with: brew install ffmpeg")
 
     cmd = [
         "ffmpeg",
         "-hide_banner", "-loglevel", "error",
-        "-i", "pipe:0",           # read from stdin
-        "-ac", "1",               # mono
-        "-ar", str(TARGET_SAMPLE_RATE),  # 16kHz
-        "-f", "f32le",            # raw float32 little-endian
-        "pipe:1",                 # write to stdout
+        "-i", "pipe:0",
+        "-ac", "1",
+        "-ar", str(TARGET_SAMPLE_RATE),
+        "-f", "f32le",
+        "pipe:1",
     ]
     result = subprocess.run(cmd, input=audio_bytes, capture_output=True)
     if result.returncode != 0:
@@ -90,29 +87,35 @@ def _decode_with_ffmpeg(audio_bytes: bytes) -> np.ndarray:
 
 
 async def _to_float32_16k(audio_bytes: bytes) -> np.ndarray:
-    """Decode any audio format to float32 mono 16kHz array."""
     is_wav = audio_bytes[:4] == b"RIFF" and audio_bytes[8:12] == b"WAVE"
 
     if is_wav:
         audio_f32, sample_rate = _parse_wav(audio_bytes)
         return _resample(audio_f32, sample_rate, TARGET_SAMPLE_RATE)
 
-    # mp3, m4a, mp4, ogg, flac, aac, etc. → ffmpeg
     return await asyncio.to_thread(_decode_with_ffmpeg, audio_bytes)
 
 
+# Audio is processed in memory only — never written to disk.
 @router.post("/transcribe", response_model=TranscribeResponse)
 async def transcribe(
     request: Request,
     audio: UploadFile = File(...),
     language: str | None = Form(None),
-    model: str | None = Form(None),
-    _: str = Depends(require_api_key),
+    api_key_id: int = Depends(require_api_key),
 ) -> TranscribeResponse:
+    settings = request.app.state.settings
     audio_bytes = await audio.read()
+
+    max_bytes = settings.MAX_AUDIO_SIZE_MB * 1024 * 1024
+    if len(audio_bytes) > max_bytes:
+        raise HTTPException(status_code=413, detail=f"Audio excede {settings.MAX_AUDIO_SIZE_MB}MB")
 
     if len(audio_bytes) < 12:
         raise HTTPException(status_code=422, detail="Audio demasiado corto")
+
+    if language and not _LANG_RE.match(language):
+        raise HTTPException(status_code=422, detail="Código de idioma inválido (esperado: ISO 639-1, ej: es, en)")
 
     try:
         audio_f32 = await _to_float32_16k(audio_bytes)
@@ -122,12 +125,32 @@ async def transcribe(
     if len(audio_f32) == 0:
         raise HTTPException(status_code=422, detail="Audio vacío después de decodificar")
 
-    result = await request.app.state.stt_backend.transcribe(audio_f32, language, model)
+    request_id = getattr(request.state, "request_id", "unknown")
 
-    return TranscribeResponse(
-        text=result.text,
-        language=result.language,
-        duration_ms=result.duration_ms,
-        processing_ms=result.processing_ms,
-        model=result.model,
-    )
+    try:
+        result = await request.app.state.stt_backend.transcribe(audio_f32, language)
+        asyncio.create_task(log_request(
+            settings.API_KEY_DB,
+            request_id=request_id,
+            api_key_id=api_key_id,
+            audio_duration_ms=result.duration_ms,
+            processing_ms=result.processing_ms,
+            language_detected=result.language,
+            status="success",
+        ))
+        return TranscribeResponse(
+            text=result.text,
+            language=result.language,
+            duration_ms=result.duration_ms,
+            processing_ms=result.processing_ms,
+            model=result.model,
+        )
+    except Exception as e:
+        asyncio.create_task(log_request(
+            settings.API_KEY_DB,
+            request_id=request_id,
+            api_key_id=api_key_id,
+            status="error",
+            error_detail=str(e)[:500],
+        ))
+        raise
