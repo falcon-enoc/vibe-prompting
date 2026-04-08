@@ -83,9 +83,10 @@ final class AudioRecorder {
                 mScope: kAudioObjectPropertyScopeGlobal,
                 mElement: kAudioObjectPropertyElementMain
             )
-            var name: CFString = "" as CFString
-            var nameSize = UInt32(MemoryLayout<CFString>.size)
-            AudioObjectGetPropertyData(deviceID, &nameAddress, 0, nil, &nameSize, &name)
+            var nameRef: Unmanaged<CFString>?
+            var nameSize = UInt32(MemoryLayout<Unmanaged<CFString>?>.size)
+            AudioObjectGetPropertyData(deviceID, &nameAddress, 0, nil, &nameSize, &nameRef)
+            let name = nameRef?.takeUnretainedValue() as String? ?? ""
 
             // Get device UID
             var uidAddress = AudioObjectPropertyAddress(
@@ -93,11 +94,12 @@ final class AudioRecorder {
                 mScope: kAudioObjectPropertyScopeGlobal,
                 mElement: kAudioObjectPropertyElementMain
             )
-            var uid: CFString = "" as CFString
-            var uidSize = UInt32(MemoryLayout<CFString>.size)
-            AudioObjectGetPropertyData(deviceID, &uidAddress, 0, nil, &uidSize, &uid)
+            var uidRef: Unmanaged<CFString>?
+            var uidSize = UInt32(MemoryLayout<Unmanaged<CFString>?>.size)
+            AudioObjectGetPropertyData(deviceID, &uidAddress, 0, nil, &uidSize, &uidRef)
+            let uid = uidRef?.takeUnretainedValue() as String? ?? ""
 
-            devices.append(AudioInputDevice(id: deviceID, uid: uid as String, name: name as String))
+            devices.append(AudioInputDevice(id: deviceID, uid: uid, name: name))
         }
         return devices
     }
