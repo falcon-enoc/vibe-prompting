@@ -17,7 +17,7 @@ class ParakeetMLXBackend:
         )
 
     async def transcribe(
-        self, audio: np.ndarray, language: str | None = None
+        self, audio: np.ndarray, language: str | None = None, model: str | None = None
     ) -> TranscribeResult:
         raise NotImplementedError
 

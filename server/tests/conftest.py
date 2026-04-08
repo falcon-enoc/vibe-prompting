@@ -17,7 +17,7 @@ from vibe_prompt.stt.protocol import TranscribeResult
 # ---------------------------------------------------------------------------
 
 class MockSTTBackend:
-    async def transcribe(self, audio, language=None) -> TranscribeResult:
+    async def transcribe(self, audio, language=None, model=None) -> TranscribeResult:
         return TranscribeResult(
             text="hola mundo",
             language="es",
@@ -83,6 +83,6 @@ async def client(mock_backend, test_api_key):
             app.state.settings = type(
                 "Settings",
                 (),
-                {"API_KEY_DB": db_path, "ADMIN_TOKEN": "test-admin-token"},
+                {"API_KEY_DB": db_path, "ADMIN_TOKEN": "test-admin-token", "MODEL_ID": "mock"},
             )()
             yield ac

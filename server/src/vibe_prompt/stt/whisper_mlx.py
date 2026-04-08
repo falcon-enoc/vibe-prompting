@@ -19,26 +19,27 @@ class WhisperMLXBackend:
         )
         print("Model ready.")
 
-    def _transcribe_sync(self, audio: np.ndarray, language: str | None) -> dict:
-        kwargs: dict = {"path_or_hf_repo": self._model_id}
+    def _transcribe_sync(self, audio: np.ndarray, language: str | None, model_id: str) -> dict:
+        kwargs: dict = {"path_or_hf_repo": model_id}
         if language is not None:
             kwargs["language"] = language
         return self._mlx_whisper.transcribe(audio, **kwargs)
 
     async def transcribe(
-        self, audio: np.ndarray, language: str | None = None
+        self, audio: np.ndarray, language: str | None = None, model: str | None = None
     ) -> TranscribeResult:
+        used_model = model or self._model_id
         duration_ms = len(audio) / 16000 * 1000
         async with self._lock:
             start = time.perf_counter()
-            result = await asyncio.to_thread(self._transcribe_sync, audio, language)
+            result = await asyncio.to_thread(self._transcribe_sync, audio, language, used_model)
             processing_ms = (time.perf_counter() - start) * 1000
         return TranscribeResult(
             text=result["text"].strip(),
             language=result.get("language"),
             duration_ms=duration_ms,
             processing_ms=processing_ms,
-            model=self._model_id,
+            model=used_model,
         )
 
     async def health(self) -> dict:

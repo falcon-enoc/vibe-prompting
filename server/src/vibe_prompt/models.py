@@ -13,3 +13,14 @@ class HealthResponse(BaseModel):
     status: str
     model_loaded: bool
     model: str
+
+
+class ModelInfo(BaseModel):
+    id: str
+    name: str
+    size_mb: int
+
+
+class ModelsResponse(BaseModel):
+    models: list[ModelInfo]
+    current: str

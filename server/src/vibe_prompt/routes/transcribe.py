@@ -106,6 +106,7 @@ async def transcribe(
     request: Request,
     audio: UploadFile = File(...),
     language: str | None = Form(None),
+    model: str | None = Form(None),
     _: str = Depends(require_api_key),
 ) -> TranscribeResponse:
     audio_bytes = await audio.read()
@@ -121,7 +122,7 @@ async def transcribe(
     if len(audio_f32) == 0:
         raise HTTPException(status_code=422, detail="Audio vacío después de decodificar")
 
-    result = await request.app.state.stt_backend.transcribe(audio_f32, language)
+    result = await request.app.state.stt_backend.transcribe(audio_f32, language, model)
 
     return TranscribeResponse(
         text=result.text,
