@@ -1,5 +1,5 @@
 import SwiftUI
-import AudioToolbox
+import AppKit
 import os
 
 private let log = Logger(subsystem: "cl.enocfalcon.vibeprompt", category: "AppState")
@@ -93,7 +93,7 @@ final class AppState {
         do {
             try recorder.startRecording(deviceUID: deviceUID)
             status = .recording
-            AudioServicesPlaySystemSound(1103) // Tink
+            NSSound(contentsOf: URL(fileURLWithPath: "/System/Library/Sounds/Tink.aiff"), byReference: true)?.play()
         } catch {
             log.error("Error al iniciar grabación: \(error.localizedDescription)")
             status = .error(error.localizedDescription)

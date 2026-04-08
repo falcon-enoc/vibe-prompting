@@ -50,10 +50,11 @@ struct MenuBarView: View {
                         set: { config.updateServer(id: config.selectedServerID, apiKey: $0) }
                     ))
 
-                    if isLocalServer {
+                    if isLocalServer && !appState.serverModels.isEmpty {
                         pickerRow("Modelo", icon: "cpu", selection: Binding(
                             get: { appState.serverCurrentModel },
                             set: { newModel in
+                                guard newModel != appState.serverCurrentModel else { return }
                                 Task {
                                     try? await appState.transcriptionService.switchModel(
                                         server: config.activeServer,
@@ -220,38 +221,46 @@ struct MenuBarView: View {
                 // History
                 if !config.transcriptionHistory.isEmpty {
                     settingsGroup("Historial") {
-                        ForEach(config.transcriptionHistory.prefix(showHistory ? 10 : 3)) { entry in
-                            HStack(spacing: 6) {
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(entry.text)
-                                        .font(.system(size: 11))
-                                        .lineLimit(1)
-                                    Text("\(entry.serverName) · \(entry.timestamp, format: .dateTime.hour().minute())")
-                                        .font(.system(size: 9))
-                                        .foregroundStyle(.tertiary)
+                        let items = Array(config.transcriptionHistory.prefix(showHistory ? 5 : 3))
+                        ScrollView {
+                            VStack(spacing: 1) {
+                                ForEach(items) { entry in
+                                    HStack(spacing: 6) {
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text(entry.text)
+                                                .font(.system(size: 11))
+                                                .lineLimit(1)
+                                            Text("\(entry.serverName) · \(entry.timestamp, format: .dateTime.hour().minute())")
+                                                .font(.system(size: 9))
+                                                .foregroundStyle(.tertiary)
+                                        }
+                                        Spacer()
+                                        Button(action: {
+                                            NSPasteboard.general.clearContents()
+                                            NSPasteboard.general.setString(entry.text, forType: .string)
+                                        }) {
+                                            Image(systemName: "doc.on.doc")
+                                                .font(.system(size: 9))
+                                                .foregroundStyle(.secondary)
+                                        }
+                                        .buttonStyle(.plain)
+                                    }
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 5)
                                 }
-                                Spacer()
-                                Button(action: {
-                                    NSPasteboard.general.clearContents()
-                                    NSPasteboard.general.setString(entry.text, forType: .string)
-                                }) {
-                                    Image(systemName: "doc.on.doc")
-                                        .font(.system(size: 9))
-                                        .foregroundStyle(.secondary)
-                                }
-                                .buttonStyle(.plain)
                             }
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 5)
                         }
+                        .frame(maxHeight: showHistory ? 120 : .infinity)
 
                         HStack(spacing: 12) {
-                            Button(showHistory ? "Menos" : "Ver más") {
-                                showHistory.toggle()
+                            if config.transcriptionHistory.count > 3 {
+                                Button(showHistory ? "Menos" : "Ver más") {
+                                    withAnimation { showHistory.toggle() }
+                                }
+                                .buttonStyle(.borderless)
+                                .font(.system(size: 10))
+                                .foregroundStyle(.blue)
                             }
-                            .buttonStyle(.borderless)
-                            .font(.system(size: 10))
-                            .foregroundStyle(.blue)
 
                             Button("Limpiar") {
                                 config.clearHistory()

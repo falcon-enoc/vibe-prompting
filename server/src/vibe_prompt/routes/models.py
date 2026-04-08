@@ -18,17 +18,18 @@ async def list_models(
     request: Request,
     _: int = Depends(require_api_key),
 ) -> ModelsResponse:
+    current = request.app.state.settings.MODEL_ID
+    model_manager = request.app.state.model_manager
     models = [
         ModelInfo(
             id=model_id,
             name=info["name"],
             backend=info["backend"],
             size_mb=info["size_mb"],
-            downloaded=request.app.state.model_manager.is_downloaded(model_id),
+            downloaded=model_manager.is_downloaded(model_id) or model_id == current,
         )
         for model_id, info in SUPPORTED_MODELS.items()
     ]
-    current = request.app.state.settings.MODEL_ID
     return ModelsResponse(models=models, current=current)
 
 
