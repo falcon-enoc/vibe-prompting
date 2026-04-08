@@ -13,6 +13,7 @@
 		5B91292A365927D1B8DC80A9 /* VibePromptApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67F5D9658E24B969BF3E016D /* VibePromptApp.swift */; };
 		5F7396D9044EC0C93AFD6BCC /* PasteService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 25C2B4F6CBE0C130F3199EE8 /* PasteService.swift */; };
 		62A1A9463791C793E0AAEE11 /* Config.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7E3471E32BAD4F109FF9E82 /* Config.swift */; };
+		B179B7762F863D290028EF2D /* ModelManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B179B7752F863D290028EF2D /* ModelManager.swift */; };
 		ED3847419FFAC2BCEA103761 /* AudioRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 612D6FA7DE80D65A89A82F28 /* AudioRecorder.swift */; };
 		F9341F25392B815846402AA4 /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 143180597420263701D94DF9 /* AppState.swift */; };
 /* End PBXBuildFile section */
@@ -26,6 +27,7 @@
 		67F5D9658E24B969BF3E016D /* VibePromptApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VibePromptApp.swift; sourceTree = "<group>"; };
 		7F85A41A8749C836893A87BD /* TranscriptionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptionService.swift; sourceTree = "<group>"; };
 		AE82102AFF3FFEDF71838C7D /* MenuBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarView.swift; sourceTree = "<group>"; };
+		B179B7752F863D290028EF2D /* ModelManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelManager.swift; sourceTree = "<group>"; };
 		E7E3471E32BAD4F109FF9E82 /* Config.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Config.swift; sourceTree = "<group>"; };
 		FEC6489EA472FEF534AD13B3 /* VibePrompt.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = VibePrompt.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -43,6 +45,7 @@
 			isa = PBXGroup;
 			children = (
 				143180597420263701D94DF9 /* AppState.swift */,
+				B179B7752F863D290028EF2D /* ModelManager.swift */,
 				612D6FA7DE80D65A89A82F28 /* AudioRecorder.swift */,
 				E7E3471E32BAD4F109FF9E82 /* Config.swift */,
 				20586321467D89DF0F7408CD /* HotkeyManager.swift */,
@@ -127,6 +130,7 @@
 				62A1A9463791C793E0AAEE11 /* Config.swift in Sources */,
 				1B90187A88E2DA90998192FA /* HotkeyManager.swift in Sources */,
 				3EA9A00C57378ED98EC23A55 /* MenuBarView.swift in Sources */,
+				B179B7762F863D290028EF2D /* ModelManager.swift in Sources */,
 				5F7396D9044EC0C93AFD6BCC /* PasteService.swift in Sources */,
 				1961C29CFA302B1664128C71 /* TranscriptionService.swift in Sources */,
 				5B91292A365927D1B8DC80A9 /* VibePromptApp.swift in Sources */,
