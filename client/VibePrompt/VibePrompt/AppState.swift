@@ -25,7 +25,8 @@ enum AppStatus: Equatable {
 final class AppState {
     var status: AppStatus = .idle
     var lastTranscription: String = ""
-    var availableModels: [WhisperModel] = []
+    var serverModels: [ServerModelInfo] = []
+    var serverCurrentModel: String = ""
 
     let config = AppConfig()
     private let recorder = AudioRecorder()
@@ -58,24 +59,20 @@ final class AppState {
         hotkeyManager.start()
     }
 
-    // MARK: - Models
+    // MARK: - Server Info
 
-    func refreshModels() {
+    func refreshServerInfo() {
         Task { @MainActor in
             do {
-                let response = try await transcriptionService.fetchModels(
-                    serverURL: config.serverURL,
-                    apiKey: config.apiKey
-                )
-                availableModels = response.models
-                // Auto-select server default if no model selected
-                if config.selectedModel.isEmpty {
-                    config.selectedModel = response.current
-                }
+                let response = try await transcriptionService.fetchModels(server: config.activeServer)
+                serverModels = response.models
+                serverCurrentModel = response.current
             } catch {
                 #if DEBUG
-                log.warning("No se pudieron obtener modelos: \(error.localizedDescription)")
+                log.warning("No se pudo consultar servidor: \(error.localizedDescription)")
                 #endif
+                serverModels = []
+                serverCurrentModel = ""
             }
         }
     }
@@ -89,14 +86,11 @@ final class AppState {
         }
         let deviceUID = config.selectedMicrophoneUID.isEmpty ? nil : config.selectedMicrophoneUID
         #if DEBUG
-        log.info("Iniciando grabación — serverURL: \(self.config.serverURL), apiKey: \(self.config.apiKey.prefix(8))..., mic: \(deviceUID ?? "default")")
+        log.info("Iniciando grabación — server: \(self.config.activeServer.name), mic: \(deviceUID ?? "default")")
         #endif
         do {
             try recorder.startRecording(deviceUID: deviceUID)
             status = .recording
-            #if DEBUG
-            log.info("Grabando...")
-            #endif
         } catch {
             log.error("Error al iniciar grabación: \(error.localizedDescription)")
             status = .error(error.localizedDescription)
@@ -125,24 +119,26 @@ final class AppState {
         #endif
         status = .transcribing
 
-        let selectedModel = config.selectedModel.isEmpty ? nil : config.selectedModel
+        let server = config.activeServer
 
         Task { @MainActor in
             do {
                 let response = try await transcriptionService.transcribe(
                     audioData: audioData,
-                    serverURL: config.serverURL,
-                    apiKey: config.apiKey,
-                    model: selectedModel
+                    server: server
                 )
                 #if DEBUG
-                log.info("Transcripción recibida: \"\(response.text.prefix(80))\"")
+                log.info("Transcripción: \"\(response.text.prefix(80))\"")
                 #endif
                 lastTranscription = response.text
+
+                config.addTranscription(TranscriptionEntry(
+                    text: response.text,
+                    serverName: server.name,
+                    durationMs: response.durationMs
+                ))
+
                 if config.autoPaste && !response.text.isEmpty {
-                    #if DEBUG
-                    log.info("Pegando texto...")
-                    #endif
                     PasteService.paste(response.text)
                 }
                 status = .success

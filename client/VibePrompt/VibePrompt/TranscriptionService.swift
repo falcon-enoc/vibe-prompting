@@ -17,19 +17,21 @@ struct TranscribeResponse: Codable {
     }
 }
 
-struct WhisperModel: Codable, Identifiable, Hashable {
+struct ServerModelInfo: Codable, Identifiable, Hashable {
     let id: String
     let name: String
+    let backend: String
     let sizeMb: Int
+    let downloaded: Bool
 
     enum CodingKeys: String, CodingKey {
-        case id, name
+        case id, name, backend, downloaded
         case sizeMb = "size_mb"
     }
 }
 
 struct ModelsResponse: Codable {
-    let models: [WhisperModel]
+    let models: [ServerModelInfo]
     let current: String
 }
 
@@ -51,13 +53,13 @@ final class TranscriptionService {
 
     // MARK: - Models
 
-    func fetchModels(serverURL: String, apiKey: String) async throws -> ModelsResponse {
-        guard let url = URL(string: "\(serverURL)/models") else {
+    func fetchModels(server: ServerConfig) async throws -> ModelsResponse {
+        guard let url = URL(string: "\(server.url)/models") else {
             throw TranscriptionError.invalidURL
         }
         var request = URLRequest(url: url)
         request.timeoutInterval = 10
-        request.setValue(apiKey, forHTTPHeaderField: "X-API-Key")
+        request.setValue(server.apiKey, forHTTPHeaderField: "X-API-Key")
 
         let (data, response) = try await URLSession.shared.data(for: request)
         guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
@@ -71,17 +73,14 @@ final class TranscriptionService {
 
     func transcribe(
         audioData: Data,
-        serverURL: String,
-        apiKey: String,
-        language: String? = nil,
-        model: String? = nil
+        server: ServerConfig,
+        language: String? = nil
     ) async throws -> TranscribeResponse {
         #if DEBUG
-        log.info("POST \(serverURL)/transcribe — audio: \(audioData.count) bytes, apiKey: \(apiKey.prefix(8))...")
+        log.info("POST \(server.url)/transcribe — audio: \(audioData.count) bytes")
         #endif
 
-        guard let url = URL(string: "\(serverURL)/transcribe") else {
-            log.error("URL inválida: \(serverURL)/transcribe")
+        guard let url = URL(string: "\(server.url)/transcribe") else {
             throw TranscriptionError.invalidURL
         }
 
@@ -90,7 +89,7 @@ final class TranscriptionService {
         request.httpMethod = "POST"
         request.timeoutInterval = 30
         request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
-        request.setValue(apiKey, forHTTPHeaderField: "X-API-Key")
+        request.setValue(server.apiKey, forHTTPHeaderField: "X-API-Key")
 
         var body = Data()
         let crlf = "\r\n"
@@ -107,20 +106,10 @@ final class TranscriptionService {
             body.append(language.data(using: .utf8)!)
             body.append(crlf.data(using: .utf8)!)
         }
-        if let model, !model.isEmpty {
-            body.append("--\(boundary)\(crlf)".data(using: .utf8)!)
-            body.append("Content-Disposition: form-data; name=\"model\"\(crlf)\(crlf)".data(using: .utf8)!)
-            body.append(model.data(using: .utf8)!)
-            body.append(crlf.data(using: .utf8)!)
-        }
         body.append("--\(boundary)--\(crlf)".data(using: .utf8)!)
         request.httpBody = body
 
-        #if DEBUG
-        log.info("Enviando request (\(body.count) bytes)...")
-        #endif
-
-        let (data, response) : (Data, URLResponse)
+        let (data, response): (Data, URLResponse)
         do {
             (data, response) = try await URLSession.shared.data(for: request)
         } catch {
@@ -129,13 +118,12 @@ final class TranscriptionService {
         }
 
         guard let httpResponse = response as? HTTPURLResponse else {
-            log.error("Respuesta no HTTP")
             throw TranscriptionError.httpError(0, "No HTTP response")
         }
 
         let bodyStr = String(data: data, encoding: .utf8) ?? "<binary>"
         #if DEBUG
-        log.info("HTTP \(httpResponse.statusCode) — respuesta: \(bodyStr.prefix(200))")
+        log.info("HTTP \(httpResponse.statusCode) — \(bodyStr.prefix(200))")
         #endif
 
         guard httpResponse.statusCode == 200 else {

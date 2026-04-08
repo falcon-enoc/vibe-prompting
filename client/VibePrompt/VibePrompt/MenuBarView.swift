@@ -1,16 +1,18 @@
 import SwiftUI
 
-// MARK: - Main View
-
 struct MenuBarView: View {
     @Bindable var appState: AppState
     @State private var inputDevices: [AudioInputDevice] = AudioRecorder.availableInputDevices()
+    @State private var isAddingServer = false
+    @State private var newServerName = ""
+    @State private var newServerURL = ""
+    @State private var newServerKey = ""
+    @State private var showHistory = false
 
     private var config: AppConfig { appState.config }
 
     var body: some View {
         VStack(spacing: 0) {
-            // ── Status Header ──
             statusHeader
                 .padding(.horizontal, 16)
                 .padding(.top, 14)
@@ -18,11 +20,75 @@ struct MenuBarView: View {
 
             separator
 
-            // ── Content ──
             VStack(spacing: 14) {
-                // Last transcription
                 if !appState.lastTranscription.isEmpty {
                     transcriptionCard
+                }
+
+                // Server section
+                settingsGroup("Servidor") {
+                    pickerRow("Activo", icon: "server.rack", selection: Binding(
+                        get: { config.selectedServerID },
+                        set: { config.selectedServerID = $0 }
+                    )) {
+                        ForEach(config.servers) { server in
+                            Text(server.name).tag(server.id)
+                        }
+                    }
+
+                    infoRow("Modelo", icon: "cpu", value: modelDisplayName)
+
+                    HStack(spacing: 8) {
+                        Image(systemName: "plus.circle")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                            .frame(width: 16)
+
+                        if isAddingServer {
+                            VStack(spacing: 4) {
+                                TextField("Nombre", text: $newServerName)
+                                    .textFieldStyle(.plain)
+                                    .font(.system(size: 11))
+                                TextField("URL", text: $newServerURL)
+                                    .textFieldStyle(.plain)
+                                    .font(.system(size: 11, design: .monospaced))
+                                SecureField("API Key", text: $newServerKey)
+                                    .textFieldStyle(.plain)
+                                    .font(.system(size: 11, design: .monospaced))
+                                HStack {
+                                    Button("Guardar") {
+                                        let server = ServerConfig(
+                                            name: newServerName.isEmpty ? "Server" : newServerName,
+                                            url: newServerURL.isEmpty ? "http://localhost:8420" : newServerURL,
+                                            apiKey: newServerKey
+                                        )
+                                        config.addServer(server)
+                                        isAddingServer = false
+                                        newServerName = ""
+                                        newServerURL = ""
+                                        newServerKey = ""
+                                    }
+                                    .buttonStyle(.borderless)
+                                    .font(.system(size: 10))
+                                    Button("Cancelar") {
+                                        isAddingServer = false
+                                    }
+                                    .buttonStyle(.borderless)
+                                    .font(.system(size: 10))
+                                    .foregroundStyle(.secondary)
+                                }
+                            }
+                            .padding(.vertical, 2)
+                        } else {
+                            Button("Agregar servidor") { isAddingServer = true }
+                                .buttonStyle(.borderless)
+                                .font(.system(size: 12))
+                                .foregroundStyle(.blue)
+                        }
+                        Spacer()
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 7)
                 }
 
                 // Audio section
@@ -36,30 +102,6 @@ struct MenuBarView: View {
                             Text(device.name).tag(device.uid)
                         }
                     }
-
-                    pickerRow("Modelo", icon: "cpu", selection: Binding(
-                        get: { config.selectedModel },
-                        set: { config.selectedModel = $0 }
-                    )) {
-                        if appState.availableModels.isEmpty {
-                            Text("Por defecto").tag("")
-                        }
-                        ForEach(appState.availableModels) { model in
-                            Text("\(model.name) (\(model.sizeMb) MB)").tag(model.id)
-                        }
-                    }
-                }
-
-                // Connection section
-                settingsGroup("Conexión") {
-                    fieldRow("Servidor", icon: "network", placeholder: "http://localhost:8420", text: Binding(
-                        get: { config.serverURL },
-                        set: { config.serverURL = $0 }
-                    ))
-                    secureRow("API Key", icon: "key", placeholder: "sk-...", text: Binding(
-                        get: { config.apiKey },
-                        set: { config.apiKey = $0 }
-                    ))
                 }
 
                 // Behavior section
@@ -78,13 +120,62 @@ struct MenuBarView: View {
                         set: { config.autoPaste = $0 }
                     ))
                 }
+
+                // History
+                if !config.transcriptionHistory.isEmpty {
+                    settingsGroup("Historial") {
+                        ForEach(config.transcriptionHistory.prefix(showHistory ? 10 : 3)) { entry in
+                            HStack(spacing: 6) {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(entry.text)
+                                        .font(.system(size: 11))
+                                        .lineLimit(1)
+                                    Text("\(entry.serverName) · \(entry.timestamp, format: .dateTime.hour().minute())")
+                                        .font(.system(size: 9))
+                                        .foregroundStyle(.tertiary)
+                                }
+                                Spacer()
+                                Button(action: {
+                                    NSPasteboard.general.clearContents()
+                                    NSPasteboard.general.setString(entry.text, forType: .string)
+                                }) {
+                                    Image(systemName: "doc.on.doc")
+                                        .font(.system(size: 9))
+                                        .foregroundStyle(.secondary)
+                                }
+                                .buttonStyle(.plain)
+                            }
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 5)
+                        }
+
+                        HStack(spacing: 12) {
+                            Button(showHistory ? "Menos" : "Ver más") {
+                                showHistory.toggle()
+                            }
+                            .buttonStyle(.borderless)
+                            .font(.system(size: 10))
+                            .foregroundStyle(.blue)
+
+                            Button("Limpiar") {
+                                config.clearHistory()
+                            }
+                            .buttonStyle(.borderless)
+                            .font(.system(size: 10))
+                            .foregroundStyle(.red.opacity(0.7))
+
+                            Spacer()
+                        }
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
+                    }
+                }
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 12)
 
             separator
 
-            // ── Footer ──
             Button(action: { NSApplication.shared.terminate(nil) }) {
                 HStack {
                     Image(systemName: "power")
@@ -103,7 +194,7 @@ struct MenuBarView: View {
         .frame(width: 320)
         .onAppear {
             inputDevices = AudioRecorder.availableInputDevices()
-            appState.refreshModels()
+            appState.refreshServerInfo()
         }
     }
 
@@ -111,7 +202,6 @@ struct MenuBarView: View {
 
     private var statusHeader: some View {
         HStack(spacing: 10) {
-            // Animated status indicator
             ZStack {
                 Circle()
                     .fill(statusColor.opacity(0.2))
@@ -144,7 +234,6 @@ struct MenuBarView: View {
 
             Spacer()
 
-            // Keyboard hint
             Text("Right \u{2318}")
                 .font(.system(size: 10, weight: .medium, design: .rounded))
                 .foregroundStyle(.tertiary)
@@ -177,7 +266,6 @@ struct MenuBarView: View {
                         .foregroundStyle(.secondary)
                 }
                 .buttonStyle(.plain)
-                .help("Copiar al portapapeles")
             }
 
             Text(appState.lastTranscription)
@@ -211,99 +299,52 @@ struct MenuBarView: View {
     // MARK: - Row Components
 
     private func pickerRow<S: Hashable, Content: View>(
-        _ label: String,
-        icon: String,
-        selection: Binding<S>,
-        @ViewBuilder content: () -> Content
+        _ label: String, icon: String, selection: Binding<S>, @ViewBuilder content: () -> Content
     ) -> some View {
         HStack(spacing: 8) {
-            Image(systemName: icon)
-                .font(.system(size: 11))
-                .foregroundStyle(.secondary)
-                .frame(width: 16)
-            Text(label)
-                .font(.system(size: 12))
+            Image(systemName: icon).font(.system(size: 11)).foregroundStyle(.secondary).frame(width: 16)
+            Text(label).font(.system(size: 12))
             Spacer()
-            Picker("", selection: selection) {
-                content()
-            }
-            .labelsHidden()
-            .pickerStyle(.menu)
-            .frame(maxWidth: 140)
+            Picker("", selection: selection) { content() }
+                .labelsHidden().pickerStyle(.menu).frame(maxWidth: 140)
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 7)
+        .padding(.horizontal, 10).padding(.vertical, 7)
     }
 
-    private func fieldRow(_ label: String, icon: String, placeholder: String, text: Binding<String>) -> some View {
+    private func infoRow(_ label: String, icon: String, value: String) -> some View {
         HStack(spacing: 8) {
-            Image(systemName: icon)
+            Image(systemName: icon).font(.system(size: 11)).foregroundStyle(.secondary).frame(width: 16)
+            Text(label).font(.system(size: 12))
+            Spacer()
+            Text(value)
                 .font(.system(size: 11))
                 .foregroundStyle(.secondary)
-                .frame(width: 16)
-            Text(label)
-                .font(.system(size: 12))
-            Spacer()
-            TextField(placeholder, text: text)
-                .textFieldStyle(.plain)
-                .font(.system(size: 11, design: .monospaced))
-                .frame(maxWidth: 140)
-                .padding(.horizontal, 6)
-                .padding(.vertical, 3)
-                .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 4))
+                .lineLimit(1)
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 7)
-    }
-
-    private func secureRow(_ label: String, icon: String, placeholder: String, text: Binding<String>) -> some View {
-        HStack(spacing: 8) {
-            Image(systemName: icon)
-                .font(.system(size: 11))
-                .foregroundStyle(.secondary)
-                .frame(width: 16)
-            Text(label)
-                .font(.system(size: 12))
-            Spacer()
-            SecureField(placeholder, text: text)
-                .textFieldStyle(.plain)
-                .font(.system(size: 11, design: .monospaced))
-                .frame(maxWidth: 140)
-                .padding(.horizontal, 6)
-                .padding(.vertical, 3)
-                .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 4))
-        }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 7)
+        .padding(.horizontal, 10).padding(.vertical, 7)
     }
 
     private func toggleRow(_ label: String, icon: String, isOn: Binding<Bool>) -> some View {
         HStack(spacing: 8) {
-            Image(systemName: icon)
-                .font(.system(size: 11))
-                .foregroundStyle(.secondary)
-                .frame(width: 16)
-            Text(label)
-                .font(.system(size: 12))
+            Image(systemName: icon).font(.system(size: 11)).foregroundStyle(.secondary).frame(width: 16)
+            Text(label).font(.system(size: 12))
             Spacer()
-            Toggle("", isOn: isOn)
-                .labelsHidden()
-                .toggleStyle(.switch)
-                .controlSize(.mini)
+            Toggle("", isOn: isOn).labelsHidden().toggleStyle(.switch).controlSize(.mini)
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 7)
+        .padding(.horizontal, 10).padding(.vertical, 7)
     }
-
-    // MARK: - Separator
 
     private var separator: some View {
-        Rectangle()
-            .fill(.quaternary)
-            .frame(height: 0.5)
+        Rectangle().fill(.quaternary).frame(height: 0.5)
     }
 
-    // MARK: - Status Helpers
+    // MARK: - Helpers
+
+    private var modelDisplayName: String {
+        if appState.serverCurrentModel.isEmpty { return "—" }
+        return appState.serverModels.first(where: { $0.id == appState.serverCurrentModel })?.name
+            ?? appState.serverCurrentModel.components(separatedBy: "/").last ?? "—"
+    }
 
     private var statusIcon: String {
         switch appState.status {
@@ -329,7 +370,7 @@ struct MenuBarView: View {
         switch appState.status {
         case .idle: "Presiona Right \u{2318} para grabar"
         case .recording: "Escuchando audio..."
-        case .transcribing: "Procesando con Whisper..."
+        case .transcribing: "Procesando con \(config.activeServer.name)..."
         case .success: "Texto copiado"
         case .error: "Revisa la configuración"
         }
