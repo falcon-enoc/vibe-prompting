@@ -40,6 +40,7 @@ final class ModelManager {
     var models: [ModelDownloadState] = []
     var activeDownloadId: String?
     var downloadProgress: Double = 0
+    var errorMessage: String?
 
     private let storageURL: URL
 
@@ -77,9 +78,11 @@ final class ModelManager {
         await MainActor.run {
             activeDownloadId = modelId
             downloadProgress = 0
+            errorMessage = nil
         }
 
         let totalFiles = model.files.count
+        var failed = false
         for (index, file) in model.files.enumerated() {
             let fileURL = URL(string: "https://huggingface.co/\(modelId)/resolve/main/\(file)")!
             var request = URLRequest(url: fileURL)
@@ -90,8 +93,11 @@ final class ModelManager {
             do {
                 let (tempURL, response) = try await URLSession.shared.download(for: request)
                 guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
-                    log.error("Error descargando \(file): HTTP \((response as? HTTPURLResponse)?.statusCode ?? 0)")
-                    continue
+                    let code = (response as? HTTPURLResponse)?.statusCode ?? 0
+                    let msg = code == 401 ? "Token HF inválido o requerido" : "HTTP \(code)"
+                    await MainActor.run { errorMessage = "Error descargando \(file): \(msg)" }
+                    failed = true
+                    break
                 }
                 let dest = dir.appendingPathComponent(file)
                 try? FileManager.default.removeItem(at: dest)
@@ -101,8 +107,15 @@ final class ModelManager {
                     downloadProgress = Double(index + 1) / Double(totalFiles)
                 }
             } catch {
-                log.error("Error descargando \(file): \(error.localizedDescription)")
+                await MainActor.run { errorMessage = "Error de red: \(error.localizedDescription)" }
+                failed = true
+                break
             }
+        }
+
+        if failed {
+            // Clean up partial download
+            try? FileManager.default.removeItem(at: dir)
         }
 
         await MainActor.run {

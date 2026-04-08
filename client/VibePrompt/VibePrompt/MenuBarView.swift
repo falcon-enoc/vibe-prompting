@@ -139,6 +139,21 @@ struct MenuBarView: View {
                         .padding(.vertical, 5)
                     }
 
+                    if let error = appState.modelManager.errorMessage {
+                        HStack(spacing: 6) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .font(.system(size: 10))
+                                .foregroundStyle(.red)
+                            Text(error)
+                                .font(.system(size: 10))
+                                .foregroundStyle(.red)
+                                .lineLimit(2)
+                            Spacer()
+                        }
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
+                    }
+
                     secureRow("HF Token", icon: "key.fill", value: Binding(
                         get: { config.hfToken },
                         set: { config.hfToken = $0 }
