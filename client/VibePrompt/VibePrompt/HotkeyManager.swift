@@ -18,7 +18,7 @@ final class HotkeyManager {
     private var pendingAction: DispatchWorkItem?
 
     private static let rightCommandKeyCode: UInt16 = 0x36
-    private static let activationDelay: TimeInterval = 0.15
+    private static let activationDelay: TimeInterval = 0.25
 
     func start() {
         guard AXIsProcessTrusted() else {

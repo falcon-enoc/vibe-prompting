@@ -1,5 +1,4 @@
 import SwiftUI
-import AppKit
 import os
 
 private let log = Logger(subsystem: "cl.enocfalcon.vibeprompt", category: "AppState")
@@ -93,7 +92,7 @@ final class AppState {
         do {
             try recorder.startRecording(deviceUID: deviceUID)
             status = .recording
-            NSSound(contentsOf: URL(fileURLWithPath: "/System/Library/Sounds/Tink.aiff"), byReference: true)?.play()
+            Self.playSound("Tink")
         } catch {
             log.error("Error al iniciar grabación: \(error.localizedDescription)")
             status = .error(error.localizedDescription)
@@ -154,6 +153,15 @@ final class AppState {
                 try? await Task.sleep(for: .seconds(3))
                 if case .error = status { status = .idle }
             }
+        }
+    }
+
+    private static func playSound(_ name: String) {
+        DispatchQueue.global(qos: .userInitiated).async {
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: "/usr/bin/afplay")
+            process.arguments = ["/System/Library/Sounds/\(name).aiff"]
+            try? process.run()
         }
     }
 }
