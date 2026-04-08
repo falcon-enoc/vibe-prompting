@@ -65,6 +65,21 @@ async def client(mock_backend, test_api_key):
                 )
                 """
             )
+            await db.execute(
+                """
+                CREATE TABLE IF NOT EXISTS request_log (
+                    id INTEGER PRIMARY KEY,
+                    request_id TEXT NOT NULL,
+                    timestamp TEXT NOT NULL,
+                    api_key_id INTEGER,
+                    audio_duration_ms REAL,
+                    processing_ms REAL,
+                    language_detected TEXT,
+                    status TEXT NOT NULL,
+                    error_detail TEXT
+                )
+                """
+            )
             key_hash = hashlib.sha256(test_api_key.encode()).hexdigest()
             await db.execute(
                 "INSERT INTO api_keys (key_hash, label, created_at, is_active) VALUES (?, ?, ?, 1)",
@@ -80,9 +95,13 @@ async def client(mock_backend, test_api_key):
             # Override state after app startup would normally run
             # We use a custom lifespan override via startup event patching
             app.state.stt_backend = mock_backend
+            app.state.model_manager = type("MockModelManager", (), {
+                "list_models": lambda self: [],
+                "is_downloaded": lambda self, m: False,
+            })()
             app.state.settings = type(
                 "Settings",
                 (),
-                {"API_KEY_DB": db_path, "ADMIN_TOKEN": "test-admin-token", "MODEL_ID": "mock"},
+                {"API_KEY_DB": db_path, "ADMIN_TOKEN": "test-admin-token", "MODEL_ID": "mock", "MAX_AUDIO_SIZE_MB": 25, "RATE_LIMIT_TRANSCRIBE": "30/minute", "RATE_LIMIT_ADMIN": "10/minute"},
             )()
             yield ac

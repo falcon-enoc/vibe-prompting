@@ -11,6 +11,9 @@ dependencies = [
     "pydantic-settings>=2.7",
     "python-multipart>=0.0.18",
     "aiosqlite>=0.21",
+    "slowapi>=0.1.9",
+    "huggingface-hub>=0.25",
+    "parakeet-mlx>=0.5",
 ]
 
 [project.optional-dependencies]

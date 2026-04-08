@@ -1,12 +1,12 @@
 from __future__ import annotations
 import hashlib
 import secrets
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Annotated
 
 import aiosqlite
-from fastapi import APIRouter, Depends, Header, HTTPException, Request
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
 
 from .config import Settings
 
@@ -41,6 +41,32 @@ async def init_db(db_path: str) -> None:
                 is_active  INTEGER DEFAULT 1
             )
             """
+        )
+        await db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS request_log (
+                id INTEGER PRIMARY KEY,
+                request_id TEXT NOT NULL,
+                timestamp TEXT NOT NULL,
+                api_key_id INTEGER,
+                audio_duration_ms REAL,
+                processing_ms REAL,
+                language_detected TEXT,
+                status TEXT NOT NULL,
+                error_detail TEXT
+            )
+            """
+        )
+        await db.commit()
+
+
+async def log_request(db_path: str, **kwargs) -> None:
+    cols = ", ".join(kwargs.keys())
+    placeholders = ", ".join("?" for _ in kwargs)
+    async with aiosqlite.connect(db_path) as db:
+        await db.execute(
+            f"INSERT INTO request_log ({cols}) VALUES ({placeholders})",
+            tuple(kwargs.values()),
         )
         await db.commit()
 
@@ -85,7 +111,7 @@ def get_settings(request: Request) -> Settings:
 async def require_api_key(
     x_api_key: Annotated[str | None, Header(alias="X-API-Key")] = None,
     request: Request = None,
-) -> str:
+) -> int:
     if x_api_key is None:
         raise HTTPException(status_code=401, detail="Missing X-API-Key header")
 
@@ -109,7 +135,7 @@ async def require_api_key(
         )
         await db.commit()
 
-    return x_api_key
+    return row[0]
 
 
 # ---------------------------------------------------------------------------
@@ -129,3 +155,42 @@ async def create_key(
         raise HTTPException(status_code=401, detail="Invalid admin token")
     key = await create_api_key(settings.API_KEY_DB, label=label)
     return {"key": key, "label": label}
+
+
+@admin_router.get("/usage")
+async def usage_stats(
+    x_admin_token: Annotated[str | None, Header(alias="X-Admin-Token")] = None,
+    settings: Settings = Depends(get_settings),
+    days: int = Query(default=7, ge=1),
+) -> dict:
+    if x_admin_token != settings.ADMIN_TOKEN:
+        raise HTTPException(status_code=401, detail="Invalid admin token")
+
+    since = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+    async with aiosqlite.connect(settings.API_KEY_DB) as db:
+        async with db.execute(
+            """
+            SELECT
+                COUNT(*) AS total_requests,
+                COALESCE(SUM(audio_duration_ms), 0) / 60000.0 AS total_audio_minutes,
+                COALESCE(SUM(processing_ms), 0) / 60000.0 AS total_processing_minutes,
+                SUM(CASE WHEN status = 'error' THEN 1 ELSE 0 END) AS error_count
+            FROM request_log WHERE timestamp >= ?
+            """,
+            (since,),
+        ) as cur:
+            row = await cur.fetchone()
+
+        async with db.execute(
+            "SELECT status, COUNT(*) FROM request_log WHERE timestamp >= ? GROUP BY status",
+            (since,),
+        ) as cur:
+            by_status = {r[0]: r[1] for r in await cur.fetchall()}
+
+    return {
+        "total_requests": row[0],
+        "total_audio_minutes": row[1],
+        "total_processing_minutes": row[2],
+        "error_count": row[3],
+        "by_status": by_status,
+    }
