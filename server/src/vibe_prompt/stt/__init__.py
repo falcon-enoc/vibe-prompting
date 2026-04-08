@@ -5,14 +5,14 @@ from .parakeet_mlx import ParakeetMLXBackend
 __all__ = ["STTBackend", "TranscribeResult", "WhisperMLXBackend", "ParakeetMLXBackend", "create_backend"]
 
 
-def create_backend(model_backend: str, model_id: str) -> STTBackend:
-    match model_backend:
-        case "whisper-base":
-            return WhisperMLXBackend(model_id=model_id)
-        case "parakeet-0.6b":
-            return ParakeetMLXBackend(model_id=model_id)
+def create_backend(backend_type: str, model_path: str) -> STTBackend:
+    match backend_type:
+        case "whisper":
+            return WhisperMLXBackend(model_id=model_path)
+        case "parakeet":
+            return ParakeetMLXBackend(model_path=model_path)
         case _:
             raise ValueError(
-                f"Unknown backend: {model_backend!r}. "
-                "Supported: 'whisper-base', 'parakeet-0.6b'."
+                f"Unknown backend: {backend_type!r}. "
+                "Supported: 'whisper', 'parakeet'."
             )

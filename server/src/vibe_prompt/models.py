@@ -18,7 +18,9 @@ class HealthResponse(BaseModel):
 class ModelInfo(BaseModel):
     id: str
     name: str
+    backend: str
     size_mb: int
+    downloaded: bool
 
 
 class ModelsResponse(BaseModel):

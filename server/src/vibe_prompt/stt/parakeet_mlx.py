@@ -1,25 +1,43 @@
-"""Placeholder for Parakeet TDT 0.6B v3 backend. Not yet implemented."""
+"""Parakeet TDT backend using parakeet-mlx on Apple Silicon."""
 from __future__ import annotations
+import asyncio, time
 import numpy as np
+import mlx.core as mx
+from parakeet_mlx import from_pretrained
+from parakeet_mlx.audio import get_logmel
 from .protocol import TranscribeResult
 
 
 class ParakeetMLXBackend:
-    """Parakeet TDT 0.6B v3 backend stub.
+    def __init__(self, model_path: str = "mlx-community/parakeet-tdt-0.6b-v3") -> None:
+        self._model_path = model_path
+        self._lock = asyncio.Lock()
+        print(f"Loading model {model_path}...")
+        self._model = from_pretrained(model_path)
+        # Warm-up: push model into Metal memory with silence
+        silence = mx.zeros((16000,), dtype=mx.bfloat16)
+        mel = get_logmel(silence, self._model.preprocessor_config)
+        self._model.generate(mel)
+        print("Model ready.")
 
-    To implement: install parakeet-mlx, load model, implement transcribe().
-    Switch via MODEL_BACKEND=parakeet-0.6b in .env
-    """
-
-    def __init__(self, model_id: str = "nvidia/parakeet-tdt-0.6b-v2") -> None:
-        raise NotImplementedError(
-            "Parakeet backend not yet implemented. Set MODEL_BACKEND=whisper-base."
-        )
+    def _transcribe_sync(self, audio: np.ndarray) -> str:
+        audio_mx = mx.array(audio, dtype=mx.bfloat16)
+        mel = get_logmel(audio_mx, self._model.preprocessor_config)
+        result = self._model.generate(mel)[0]
+        return result.text.strip()
 
     async def transcribe(
         self, audio: np.ndarray, language: str | None = None, model: str | None = None
     ) -> TranscribeResult:
-        raise NotImplementedError
+        duration_ms = len(audio) / 16000 * 1000
+        async with self._lock:
+            start = time.perf_counter()
+            text = await asyncio.to_thread(self._transcribe_sync, audio)
+            processing_ms = (time.perf_counter() - start) * 1000
+        return TranscribeResult(
+            text=text, language="en", duration_ms=duration_ms,
+            processing_ms=processing_ms, model=self._model_path,
+        )
 
     async def health(self) -> dict:
-        raise NotImplementedError
+        return {"model_loaded": True, "model": self._model_path}
