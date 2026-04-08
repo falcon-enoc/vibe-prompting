@@ -80,7 +80,7 @@ final class AppState {
     // MARK: - Recording
 
     func startRecording() {
-        guard status == .idle || status == .success else {
+        guard status == .idle || status == .success || { if case .error = status { return true }; return false }() else {
             log.warning("startRecording ignorado — estado actual: \(self.status.label)")
             return
         }

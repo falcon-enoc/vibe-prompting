@@ -3,10 +3,6 @@ import SwiftUI
 struct MenuBarView: View {
     @Bindable var appState: AppState
     @State private var inputDevices: [AudioInputDevice] = AudioRecorder.availableInputDevices()
-    @State private var isAddingServer = false
-    @State private var newServerName = ""
-    @State private var newServerURL = ""
-    @State private var newServerKey = ""
     @State private var showHistory = false
 
     private var config: AppConfig { appState.config }
@@ -29,66 +25,61 @@ struct MenuBarView: View {
                 settingsGroup("Servidor") {
                     pickerRow("Activo", icon: "server.rack", selection: Binding(
                         get: { config.selectedServerID },
-                        set: { config.selectedServerID = $0 }
+                        set: {
+                            config.selectedServerID = $0
+                            appState.refreshServerInfo()
+                        }
                     )) {
                         ForEach(config.servers) { server in
                             Text(server.name).tag(server.id)
                         }
                     }
 
+                    // Editable fields for active server
+                    editableRow("Nombre", icon: "tag", value: Binding(
+                        get: { config.activeServer.name },
+                        set: { config.updateServer(id: config.selectedServerID, name: $0) }
+                    ))
+                    editableRow("URL", icon: "network", value: Binding(
+                        get: { config.activeServer.url },
+                        set: { config.updateServer(id: config.selectedServerID, url: $0) }
+                    ), monospaced: true)
+                    secureRow("API Key", icon: "key", value: Binding(
+                        get: { config.activeServer.apiKey },
+                        set: { config.updateServer(id: config.selectedServerID, apiKey: $0) }
+                    ))
+
                     infoRow("Modelo", icon: "cpu", value: modelDisplayName)
 
-                    HStack(spacing: 8) {
-                        Image(systemName: "plus.circle")
-                            .font(.system(size: 11))
-                            .foregroundStyle(.secondary)
-                            .frame(width: 16)
-
-                        if isAddingServer {
-                            VStack(spacing: 4) {
-                                TextField("Nombre", text: $newServerName)
-                                    .textFieldStyle(.plain)
-                                    .font(.system(size: 11))
-                                TextField("URL", text: $newServerURL)
-                                    .textFieldStyle(.plain)
-                                    .font(.system(size: 11, design: .monospaced))
-                                SecureField("API Key", text: $newServerKey)
-                                    .textFieldStyle(.plain)
-                                    .font(.system(size: 11, design: .monospaced))
-                                HStack {
-                                    Button("Guardar") {
-                                        let server = ServerConfig(
-                                            name: newServerName.isEmpty ? "Server" : newServerName,
-                                            url: newServerURL.isEmpty ? "http://localhost:8420" : newServerURL,
-                                            apiKey: newServerKey
-                                        )
-                                        config.addServer(server)
-                                        isAddingServer = false
-                                        newServerName = ""
-                                        newServerURL = ""
-                                        newServerKey = ""
-                                    }
-                                    .buttonStyle(.borderless)
-                                    .font(.system(size: 10))
-                                    Button("Cancelar") {
-                                        isAddingServer = false
-                                    }
-                                    .buttonStyle(.borderless)
-                                    .font(.system(size: 10))
-                                    .foregroundStyle(.secondary)
-                                }
-                            }
-                            .padding(.vertical, 2)
-                        } else {
-                            Button("Agregar servidor") { isAddingServer = true }
-                                .buttonStyle(.borderless)
-                                .font(.system(size: 12))
-                                .foregroundStyle(.blue)
+                    // Add / Remove
+                    HStack(spacing: 12) {
+                        Button(action: {
+                            let server = ServerConfig(name: "Nuevo", url: "http://localhost:8420")
+                            config.addServer(server)
+                            config.selectedServerID = server.id
+                        }) {
+                            Label("Agregar", systemImage: "plus.circle")
+                                .font(.system(size: 10))
                         }
+                        .buttonStyle(.borderless)
+                        .foregroundStyle(.blue)
+
+                        if config.servers.count > 1 {
+                            Button(action: {
+                                config.removeServer(id: config.selectedServerID)
+                                appState.refreshServerInfo()
+                            }) {
+                                Label("Eliminar", systemImage: "trash")
+                                    .font(.system(size: 10))
+                            }
+                            .buttonStyle(.borderless)
+                            .foregroundStyle(.red.opacity(0.7))
+                        }
+
                         Spacer()
                     }
                     .padding(.horizontal, 10)
-                    .padding(.vertical, 7)
+                    .padding(.vertical, 5)
                 }
 
                 // Audio section
@@ -307,6 +298,36 @@ struct MenuBarView: View {
             Spacer()
             Picker("", selection: selection) { content() }
                 .labelsHidden().pickerStyle(.menu).frame(maxWidth: 140)
+        }
+        .padding(.horizontal, 10).padding(.vertical, 7)
+    }
+
+    private func editableRow(_ label: String, icon: String, value: Binding<String>, monospaced: Bool = false) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: icon).font(.system(size: 11)).foregroundStyle(.secondary).frame(width: 16)
+            Text(label).font(.system(size: 12))
+            Spacer()
+            TextField("", text: value)
+                .textFieldStyle(.plain)
+                .font(.system(size: 11, design: monospaced ? .monospaced : .default))
+                .frame(maxWidth: 140)
+                .padding(.horizontal, 6).padding(.vertical, 3)
+                .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 4))
+        }
+        .padding(.horizontal, 10).padding(.vertical, 7)
+    }
+
+    private func secureRow(_ label: String, icon: String, value: Binding<String>) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: icon).font(.system(size: 11)).foregroundStyle(.secondary).frame(width: 16)
+            Text(label).font(.system(size: 12))
+            Spacer()
+            SecureField("", text: value)
+                .textFieldStyle(.plain)
+                .font(.system(size: 11, design: .monospaced))
+                .frame(maxWidth: 140)
+                .padding(.horizontal, 6).padding(.vertical, 3)
+                .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 4))
         }
         .padding(.horizontal, 10).padding(.vertical, 7)
     }

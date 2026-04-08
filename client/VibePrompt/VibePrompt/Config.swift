@@ -99,14 +99,34 @@ final class AppConfig {
     // MARK: - Mutations
 
     func addServer(_ server: ServerConfig) {
-        servers.append(server)
+        var s = server
+        s.url = Self.normalizeURL(s.url)
+        servers.append(s)
+    }
+
+    func updateServer(id: UUID, name: String? = nil, url: String? = nil, apiKey: String? = nil, hfToken: String? = nil) {
+        guard let idx = servers.firstIndex(where: { $0.id == id }) else { return }
+        if let name { servers[idx].name = name }
+        if let url { servers[idx].url = Self.normalizeURL(url) }
+        if let apiKey { servers[idx].apiKey = apiKey }
+        if let hfToken { servers[idx].hfToken = hfToken }
     }
 
     func removeServer(id: UUID) {
+        guard servers.count > 1 else { return }
         servers.removeAll(where: { $0.id == id })
         if selectedServerID == id {
             selectedServerID = servers.first?.id ?? UUID()
         }
+    }
+
+    static func normalizeURL(_ url: String) -> String {
+        var u = url.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !u.isEmpty && !u.contains("://") {
+            u = "http://\(u)"
+        }
+        if u.hasSuffix("/") { u = String(u.dropLast()) }
+        return u
     }
 
     func addTranscription(_ entry: TranscriptionEntry) {
