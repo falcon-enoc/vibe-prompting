@@ -89,6 +89,8 @@ final class HotkeyManager {
     }
 
     private func handleEvent(_ event: CGEvent) {
+        let eventType = event.type.rawValue
+        guard eventType > 0 && eventType <= 31 else { return }
         let flags = event.flags
         guard let nsEvent = NSEvent(cgEvent: event) else { return }
         let isRightCmd = nsEvent.keyCode == Self.rightCommandKeyCode
