@@ -4,6 +4,7 @@ struct MenuBarView: View {
     @Bindable var appState: AppState
     @State private var inputDevices: [AudioInputDevice] = AudioRecorder.availableInputDevices()
     @State private var showHistory = false
+    @State private var showModels = false
 
     private var config: AppConfig { appState.config }
 
@@ -49,7 +50,27 @@ struct MenuBarView: View {
                         set: { config.updateServer(id: config.selectedServerID, apiKey: $0) }
                     ))
 
-                    infoRow("Modelo", icon: "cpu", value: modelDisplayName)
+                    if isLocalServer {
+                        pickerRow("Modelo", icon: "cpu", selection: Binding(
+                            get: { appState.serverCurrentModel },
+                            set: { newModel in
+                                Task {
+                                    try? await appState.transcriptionService.switchModel(
+                                        server: config.activeServer,
+                                        modelId: newModel,
+                                        adminToken: config.activeServer.apiKey
+                                    )
+                                    appState.refreshServerInfo()
+                                }
+                            }
+                        )) {
+                            ForEach(appState.serverModels.filter(\.downloaded)) { model in
+                                Text(model.name).tag(model.id)
+                            }
+                        }
+                    } else {
+                        infoRow("Modelo", icon: "cpu", value: modelDisplayName)
+                    }
 
                     // Add / Remove
                     HStack(spacing: 12) {
@@ -95,69 +116,88 @@ struct MenuBarView: View {
                     }
                 }
 
-                // Models section
+                // Models section (collapsible)
                 settingsGroup("Modelos") {
-                    ForEach(appState.modelManager.models) { state in
+                    Button(action: { withAnimation(.easeInOut(duration: 0.2)) { showModels.toggle() } }) {
                         HStack(spacing: 8) {
-                            Image(systemName: state.downloaded ? "checkmark.circle.fill" : "arrow.down.circle")
-                                .font(.system(size: 11))
-                                .foregroundStyle(state.downloaded ? .green : .secondary)
+                            Image(systemName: showModels ? "chevron.down" : "chevron.right")
+                                .font(.system(size: 9, weight: .semibold))
+                                .foregroundStyle(.tertiary)
                                 .frame(width: 16)
-                            VStack(alignment: .leading, spacing: 1) {
-                                Text(state.model.name)
-                                    .font(.system(size: 12))
-                                Text("\(state.model.sizeMb) MB · \(state.model.backend)")
-                                    .font(.system(size: 9))
-                                    .foregroundStyle(.tertiary)
-                            }
+                            Text("\(appState.modelManager.models.filter(\.downloaded).count) de \(appState.modelManager.models.count) descargados")
+                                .font(.system(size: 12))
+                                .foregroundStyle(.secondary)
                             Spacer()
-                            if appState.modelManager.activeDownloadId == state.model.id {
-                                ProgressView(value: appState.modelManager.downloadProgress)
-                                    .frame(width: 50)
-                            } else if !state.downloaded {
-                                Button("Descargar") {
-                                    Task {
-                                        await appState.modelManager.download(
-                                            modelId: state.model.id,
-                                            hfToken: config.hfToken.isEmpty ? nil : config.hfToken
-                                        )
+                        }
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 7)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+
+                    if showModels {
+                        ForEach(appState.modelManager.models) { state in
+                            HStack(spacing: 8) {
+                                Image(systemName: state.downloaded ? "checkmark.circle.fill" : "arrow.down.circle")
+                                    .font(.system(size: 11))
+                                    .foregroundStyle(state.downloaded ? .green : .secondary)
+                                    .frame(width: 16)
+                                VStack(alignment: .leading, spacing: 1) {
+                                    Text(state.model.name)
+                                        .font(.system(size: 12))
+                                    Text("\(state.model.sizeMb) MB · \(state.model.backend)")
+                                        .font(.system(size: 9))
+                                        .foregroundStyle(.tertiary)
+                                }
+                                Spacer()
+                                if appState.modelManager.activeDownloadId == state.model.id {
+                                    ProgressView(value: appState.modelManager.downloadProgress)
+                                        .frame(width: 50)
+                                } else if !state.downloaded {
+                                    Button("Descargar") {
+                                        Task {
+                                            await appState.modelManager.download(
+                                                modelId: state.model.id,
+                                                hfToken: config.hfToken.isEmpty ? nil : config.hfToken
+                                            )
+                                        }
                                     }
+                                    .buttonStyle(.borderless)
+                                    .font(.system(size: 10))
+                                    .foregroundStyle(.blue)
+                                } else {
+                                    Button(action: { appState.modelManager.delete(modelId: state.model.id) }) {
+                                        Image(systemName: "trash")
+                                            .font(.system(size: 10))
+                                            .foregroundStyle(.red.opacity(0.6))
+                                    }
+                                    .buttonStyle(.plain)
                                 }
-                                .buttonStyle(.borderless)
-                                .font(.system(size: 10))
-                                .foregroundStyle(.blue)
-                            } else {
-                                Button(action: { appState.modelManager.delete(modelId: state.model.id) }) {
-                                    Image(systemName: "trash")
-                                        .font(.system(size: 10))
-                                        .foregroundStyle(.red.opacity(0.6))
-                                }
-                                .buttonStyle(.plain)
                             }
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 5)
                         }
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 5)
-                    }
 
-                    if let error = appState.modelManager.errorMessage {
-                        HStack(spacing: 6) {
-                            Image(systemName: "exclamationmark.triangle.fill")
-                                .font(.system(size: 10))
-                                .foregroundStyle(.red)
-                            Text(error)
-                                .font(.system(size: 10))
-                                .foregroundStyle(.red)
-                                .lineLimit(2)
-                            Spacer()
+                        if let error = appState.modelManager.errorMessage {
+                            HStack(spacing: 6) {
+                                Image(systemName: "exclamationmark.triangle.fill")
+                                    .font(.system(size: 10))
+                                    .foregroundStyle(.red)
+                                Text(error)
+                                    .font(.system(size: 10))
+                                    .foregroundStyle(.red)
+                                    .lineLimit(2)
+                                Spacer()
+                            }
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 5)
                         }
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 5)
-                    }
 
-                    secureRow("HF Token", icon: "key.fill", value: Binding(
-                        get: { config.hfToken },
-                        set: { config.hfToken = $0 }
-                    ))
+                        secureRow("HF Token", icon: "key.fill", value: Binding(
+                            get: { config.hfToken },
+                            set: { config.hfToken = $0 }
+                        ))
+                    }
                 }
 
                 // Behavior section
@@ -425,6 +465,11 @@ struct MenuBarView: View {
     }
 
     // MARK: - Helpers
+
+    private var isLocalServer: Bool {
+        let url = config.activeServer.url.lowercased()
+        return url.contains("localhost") || url.contains("127.0.0.1")
+    }
 
     private var modelDisplayName: String {
         if appState.serverCurrentModel.isEmpty { return "—" }

@@ -69,6 +69,22 @@ final class TranscriptionService {
         return try JSONDecoder().decode(ModelsResponse.self, from: data)
     }
 
+    func switchModel(server: ServerConfig, modelId: String, adminToken: String) async throws {
+        guard let url = URL(string: "\(server.url)/models/switch?model_id=\(modelId.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? modelId)") else {
+            throw TranscriptionError.invalidURL
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.timeoutInterval = 15
+        request.setValue(adminToken, forHTTPHeaderField: "X-Admin-Token")
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
+            let body = String(data: data, encoding: .utf8) ?? ""
+            throw TranscriptionError.httpError((response as? HTTPURLResponse)?.statusCode ?? 0, body)
+        }
+    }
+
     // MARK: - Transcribe
 
     func transcribe(

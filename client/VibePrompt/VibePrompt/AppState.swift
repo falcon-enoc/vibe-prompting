@@ -1,4 +1,5 @@
 import SwiftUI
+import AudioToolbox
 import os
 
 private let log = Logger(subsystem: "cl.enocfalcon.vibeprompt", category: "AppState")
@@ -31,7 +32,7 @@ final class AppState {
     let config = AppConfig()
     let modelManager = ModelManager()
     private let recorder = AudioRecorder()
-    private let transcriptionService = TranscriptionService()
+    let transcriptionService = TranscriptionService()
     private let hotkeyManager = HotkeyManager()
 
     init() {
@@ -92,7 +93,7 @@ final class AppState {
         do {
             try recorder.startRecording(deviceUID: deviceUID)
             status = .recording
-            NSSound(named: "Tink")?.play()
+            AudioServicesPlaySystemSound(1103) // Tink
         } catch {
             log.error("Error al iniciar grabación: \(error.localizedDescription)")
             status = .error(error.localizedDescription)
@@ -116,7 +117,6 @@ final class AppState {
             }
             return
         }
-        NSSound(named: "Pop")?.play()
         #if DEBUG
         log.info("Grabación detenida — \(audioData.count) bytes de audio")
         #endif
