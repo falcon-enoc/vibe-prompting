@@ -1,0 +1,38 @@
+name: VibePrompt
+options:
+  bundleIdPrefix: cl.enocfalcon
+  deploymentTarget:
+    macOS: "14.0"
+  xcodeVersion: "16.0"
+
+settings:
+  base:
+    SWIFT_VERSION: "5.9"
+    MACOSX_DEPLOYMENT_TARGET: "14.0"
+    ENABLE_HARDENED_RUNTIME: YES
+
+targets:
+  VibePrompt:
+    type: application
+    platform: macOS
+    sources:
+      - path: VibePrompt
+        excludes:
+          - "**/*.plist"
+    info:
+      path: VibePrompt/Info.plist
+      properties:
+        LSUIElement: true
+        NSMicrophoneUsageDescription: "Vibe Prompt necesita acceso al micrófono para grabar audio y transcribirlo a texto."
+        NSPrincipalClass: NSApplication
+    entitlements:
+      path: VibePrompt/VibePrompt.entitlements
+      properties:
+        com.apple.security.device.audio-input: true
+        com.apple.security.automation.apple-events: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: cl.enocfalcon.vibeprompt
+        PRODUCT_NAME: VibePrompt
+        CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: ""
