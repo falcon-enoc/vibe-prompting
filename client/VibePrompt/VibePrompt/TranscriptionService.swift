@@ -17,6 +17,22 @@ struct TranscribeResponse: Codable {
     }
 }
 
+struct WhisperModel: Codable, Identifiable, Hashable {
+    let id: String
+    let name: String
+    let sizeMb: Int
+
+    enum CodingKeys: String, CodingKey {
+        case id, name
+        case sizeMb = "size_mb"
+    }
+}
+
+struct ModelsResponse: Codable {
+    let models: [WhisperModel]
+    let current: String
+}
+
 enum TranscriptionError: LocalizedError {
     case invalidURL
     case httpError(Int, String)
@@ -32,11 +48,33 @@ enum TranscriptionError: LocalizedError {
 }
 
 final class TranscriptionService {
+
+    // MARK: - Models
+
+    func fetchModels(serverURL: String, apiKey: String) async throws -> ModelsResponse {
+        guard let url = URL(string: "\(serverURL)/models") else {
+            throw TranscriptionError.invalidURL
+        }
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 10
+        request.setValue(apiKey, forHTTPHeaderField: "X-API-Key")
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
+            let body = String(data: data, encoding: .utf8) ?? ""
+            throw TranscriptionError.httpError((response as? HTTPURLResponse)?.statusCode ?? 0, body)
+        }
+        return try JSONDecoder().decode(ModelsResponse.self, from: data)
+    }
+
+    // MARK: - Transcribe
+
     func transcribe(
         audioData: Data,
         serverURL: String,
         apiKey: String,
-        language: String? = nil
+        language: String? = nil,
+        model: String? = nil
     ) async throws -> TranscribeResponse {
         #if DEBUG
         log.info("POST \(serverURL)/transcribe — audio: \(audioData.count) bytes, apiKey: \(apiKey.prefix(8))...")
@@ -67,6 +105,12 @@ final class TranscriptionService {
             body.append("--\(boundary)\(crlf)".data(using: .utf8)!)
             body.append("Content-Disposition: form-data; name=\"language\"\(crlf)\(crlf)".data(using: .utf8)!)
             body.append(language.data(using: .utf8)!)
+            body.append(crlf.data(using: .utf8)!)
+        }
+        if let model, !model.isEmpty {
+            body.append("--\(boundary)\(crlf)".data(using: .utf8)!)
+            body.append("Content-Disposition: form-data; name=\"model\"\(crlf)\(crlf)".data(using: .utf8)!)
+            body.append(model.data(using: .utf8)!)
             body.append(crlf.data(using: .utf8)!)
         }
         body.append("--\(boundary)--\(crlf)".data(using: .utf8)!)

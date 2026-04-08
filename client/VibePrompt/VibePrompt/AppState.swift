@@ -10,16 +10,6 @@ enum AppStatus: Equatable {
     case success
     case error(String)
 
-    var icon: String {
-        switch self {
-        case .idle: "mic.slash"
-        case .recording: "mic.fill"
-        case .transcribing: "ellipsis.circle"
-        case .success: "checkmark.circle"
-        case .error: "exclamationmark.triangle"
-        }
-    }
-
     var label: String {
         switch self {
         case .idle: "Listo"
@@ -35,6 +25,7 @@ enum AppStatus: Equatable {
 final class AppState {
     var status: AppStatus = .idle
     var lastTranscription: String = ""
+    var availableModels: [WhisperModel] = []
 
     let config = AppConfig()
     private let recorder = AudioRecorder()
@@ -57,7 +48,7 @@ final class AppState {
     }
 
     private func setupHotkey() {
-        hotkeyManager.mode = config.hotkeyMode
+        hotkeyManager.modeProvider = { [weak self] in self?.config.hotkeyMode ?? .pushToTalk }
         hotkeyManager.onStartRecording = { [weak self] in
             self?.startRecording()
         }
@@ -66,6 +57,30 @@ final class AppState {
         }
         hotkeyManager.start()
     }
+
+    // MARK: - Models
+
+    func refreshModels() {
+        Task { @MainActor in
+            do {
+                let response = try await transcriptionService.fetchModels(
+                    serverURL: config.serverURL,
+                    apiKey: config.apiKey
+                )
+                availableModels = response.models
+                // Auto-select server default if no model selected
+                if config.selectedModel.isEmpty {
+                    config.selectedModel = response.current
+                }
+            } catch {
+                #if DEBUG
+                log.warning("No se pudieron obtener modelos: \(error.localizedDescription)")
+                #endif
+            }
+        }
+    }
+
+    // MARK: - Recording
 
     func startRecording() {
         guard status == .idle || status == .success else {
@@ -110,12 +125,15 @@ final class AppState {
         #endif
         status = .transcribing
 
+        let selectedModel = config.selectedModel.isEmpty ? nil : config.selectedModel
+
         Task { @MainActor in
             do {
                 let response = try await transcriptionService.transcribe(
                     audioData: audioData,
                     serverURL: config.serverURL,
-                    apiKey: config.apiKey
+                    apiKey: config.apiKey,
+                    model: selectedModel
                 )
                 #if DEBUG
                 log.info("Transcripción recibida: \"\(response.text.prefix(80))\"")

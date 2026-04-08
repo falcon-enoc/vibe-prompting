@@ -30,6 +30,10 @@ final class AppConfig {
         didSet { UserDefaults.standard.set(selectedMicrophoneUID, forKey: "selectedMicrophoneUID") }
     }
 
+    var selectedModel: String = UserDefaults.standard.string(forKey: "selectedModel") ?? "" {
+        didSet { UserDefaults.standard.set(selectedModel, forKey: "selectedModel") }
+    }
+
     var hotkeyModeRaw: String = UserDefaults.standard.string(forKey: "hotkeyModeRaw") ?? HotkeyMode.pushToTalk.rawValue {
         didSet { UserDefaults.standard.set(hotkeyModeRaw, forKey: "hotkeyModeRaw") }
     }
