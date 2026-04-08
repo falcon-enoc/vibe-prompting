@@ -1,0 +1,35 @@
+# Secrets
+.env
+.agent.env
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.egg-info/
+.mypy_cache/
+.pytest_cache/
+dist/
+build/
+
+# SQLite
+*.db
+
+# macOS
+.DS_Store
+
+# Xcode
+DerivedData/
+xcuserdata/
+*.xcuserstate
+
+# Server data
+server/data/
+
+# Logs
+*.log
+
+# Docs internos y benchmarks
+CLAUDE.md
+idea.md
+benchmarks/
