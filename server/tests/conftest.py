@@ -17,7 +17,10 @@ from vibe_prompt.stt.protocol import TranscribeResult
 # ---------------------------------------------------------------------------
 
 class MockSTTBackend:
+    last_used = __import__("time").time()
+
     async def transcribe(self, audio, language=None, model=None) -> TranscribeResult:
+        self.last_used = __import__("time").time()
         return TranscribeResult(
             text="hola mundo",
             language="es",
@@ -28,6 +31,12 @@ class MockSTTBackend:
 
     async def health(self) -> dict:
         return {"model_loaded": True, "model": "mock"}
+
+    def is_loaded(self) -> bool:
+        return True
+
+    def unload(self) -> None:
+        pass
 
 
 # ---------------------------------------------------------------------------
@@ -102,6 +111,6 @@ async def client(mock_backend, test_api_key):
             app.state.settings = type(
                 "Settings",
                 (),
-                {"API_KEY_DB": db_path, "ADMIN_TOKEN": "test-admin-token", "MODEL_ID": "mock", "MAX_AUDIO_SIZE_MB": 25, "RATE_LIMIT_TRANSCRIBE": "30/minute", "RATE_LIMIT_ADMIN": "10/minute"},
+                {"API_KEY_DB": db_path, "ADMIN_TOKEN": "test-admin-token", "MODEL_ID": "mock", "MAX_AUDIO_SIZE_MB": 25, "RATE_LIMIT_TRANSCRIBE": "30/minute", "RATE_LIMIT_ADMIN": "10/minute", "IDLE_UNLOAD_MINUTES": 10},
             )()
             yield ac

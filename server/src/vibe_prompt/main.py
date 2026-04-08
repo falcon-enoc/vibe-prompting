@@ -1,4 +1,6 @@
+import asyncio
 import logging
+import time
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from pathlib import Path
@@ -32,7 +34,24 @@ async def lifespan(app: FastAPI):
     await init_db(settings.API_KEY_DB)
     await ensure_dev_key(settings.API_KEY_DB)
     logger.info("Server ready.")
-    yield
+
+    # Background idle-unload checker
+    async def _idle_checker():
+        if settings.IDLE_UNLOAD_MINUTES <= 0:
+            return
+        timeout = settings.IDLE_UNLOAD_MINUTES * 60
+        while True:
+            await asyncio.sleep(60)
+            backend = app.state.stt_backend
+            if backend.is_loaded() and (time.time() - backend.last_used) > timeout:
+                logger.info("Idle timeout — unloading model from memory")
+                backend.unload()
+
+    idle_task = asyncio.create_task(_idle_checker())
+    try:
+        yield
+    finally:
+        idle_task.cancel()
 
 
 def create_app() -> FastAPI:
