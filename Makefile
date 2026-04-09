@@ -1,4 +1,4 @@
-.PHONY: help server-install server-dev server-test server-lint create-api-key client-open client-build dev test lint deploy-server deploy-install
+.PHONY: help server-install server-dev server-test server-lint create-api-key client-open client-build client-archive client-dmg client-clean dev test lint deploy-server deploy-install
 
 help: ## Muestra los targets disponibles
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
@@ -38,6 +38,37 @@ client-build: ## Compila el cliente via xcodebuild
 		-scheme VibePrompt \
 		-configuration Release \
 		build
+
+DMG_NAME := VibePrompt-$(shell date +%Y%m%d).dmg
+
+client-archive: ## Archiva el cliente para distribución
+	xcodebuild archive \
+		-project client/VibePrompt/VibePrompt.xcodeproj \
+		-scheme VibePrompt \
+		-configuration Release \
+		-archivePath build/VibePrompt.xcarchive \
+		CODE_SIGN_IDENTITY="-" \
+		CODE_SIGNING_ALLOWED=YES
+
+client-dmg: client-archive ## Crea DMG del cliente
+	@mkdir -p build/dmg
+	@cp -R build/VibePrompt.xcarchive/Products/Applications/VibePrompt.app build/dmg/
+	@test -x "$$(command -v create-dmg)" && \
+		create-dmg \
+			--volname "VibePrompt" \
+			--window-pos 200 120 \
+			--window-size 600 400 \
+			--icon-size 100 \
+			--icon "VibePrompt.app" 150 190 \
+			--app-drop-link 450 190 \
+			"build/$(DMG_NAME)" \
+			"build/dmg/" || \
+		hdiutil create -volname "VibePrompt" -srcfolder build/dmg -ov -format UDZO "build/$(DMG_NAME)"
+	@rm -rf build/dmg
+	@echo "DMG creado: build/$(DMG_NAME)"
+
+client-clean: ## Limpia artefactos de build del cliente
+	rm -rf build/
 
 # --- Shortcuts ---
 

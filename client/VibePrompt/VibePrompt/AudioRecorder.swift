@@ -33,6 +33,8 @@ final class AudioRecorder {
     private let sampleRate: Double = 16000
     private var configObserver: NSObjectProtocol?
     private var warmedUp = false
+    private var activeConverter: AVAudioConverter?
+    private var activeConvertedBuffer: AVAudioPCMBuffer?
 
     /// Prime the HAL by briefly starting the engine. Runs on the same engine
     /// instance used for recording so the HAL session carries over.
@@ -86,7 +88,8 @@ final class AudioRecorder {
             AudioObjectGetPropertyDataSize(deviceID, &inputAddress, 0, nil, &streamSize)
             if streamSize == 0 { continue }
 
-            // Skip aggregate devices (virtual "Default Device Aggregate" etc.)
+            // Skip non-Bluetooth aggregate devices (virtual "Default Device Aggregate" etc.)
+            // Allow Bluetooth aggregates — macOS creates them for AirPods/BT headsets.
             var transportAddress = AudioObjectPropertyAddress(
                 mSelector: kAudioDevicePropertyTransportType,
                 mScope: kAudioObjectPropertyScopeGlobal,
@@ -95,7 +98,10 @@ final class AudioRecorder {
             var transportType: UInt32 = 0
             var transportSize = UInt32(MemoryLayout<UInt32>.size)
             AudioObjectGetPropertyData(deviceID, &transportAddress, 0, nil, &transportSize, &transportType)
-            if transportType == kAudioDeviceTransportTypeAggregate { continue }
+            if transportType == kAudioDeviceTransportTypeAggregate {
+                // Check if this aggregate contains a Bluetooth sub-device
+                if !Self.aggregateContainsBluetooth(deviceID: deviceID) { continue }
+            }
 
             // Get device name
             var nameAddress = AudioObjectPropertyAddress(
@@ -122,6 +128,37 @@ final class AudioRecorder {
             devices.append(AudioInputDevice(id: deviceID, uid: uid, name: name))
         }
         return devices
+    }
+
+    /// Check if an aggregate device contains a Bluetooth sub-device.
+    private static func aggregateContainsBluetooth(deviceID: AudioDeviceID) -> Bool {
+        var address = AudioObjectPropertyAddress(
+            mSelector: kAudioAggregateDevicePropertyActiveSubDeviceList,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        var dataSize: UInt32 = 0
+        guard AudioObjectGetPropertyDataSize(deviceID, &address, 0, nil, &dataSize) == noErr,
+              dataSize > 0 else { return false }
+
+        let count = Int(dataSize) / MemoryLayout<AudioDeviceID>.size
+        var subDeviceIDs = [AudioDeviceID](repeating: 0, count: count)
+        guard AudioObjectGetPropertyData(deviceID, &address, 0, nil, &dataSize, &subDeviceIDs) == noErr else { return false }
+
+        for subID in subDeviceIDs {
+            var transportAddr = AudioObjectPropertyAddress(
+                mSelector: kAudioDevicePropertyTransportType,
+                mScope: kAudioObjectPropertyScopeGlobal,
+                mElement: kAudioObjectPropertyElementMain
+            )
+            var transport: UInt32 = 0
+            var size = UInt32(MemoryLayout<UInt32>.size)
+            AudioObjectGetPropertyData(subID, &transportAddr, 0, nil, &size, &transport)
+            if transport == kAudioDeviceTransportTypeBluetooth || transport == kAudioDeviceTransportTypeBluetoothLE {
+                return true
+            }
+        }
+        return false
     }
 
     /// Resolve AudioDeviceID from a UID string. Returns nil if not found (will use system default).
@@ -196,16 +233,23 @@ final class AudioRecorder {
     }
 
     /// Configure input device, validate format, install tap, and start engine.
+    /// For Bluetooth devices (AirPods), macOS will switch from A2DP to HFP profile
+    /// once the mic is accessed, triggering AVAudioEngineConfigurationChange.
+    /// The observer in startRecording() handles this by restarting with the new format.
     private func configureAndStart() throws {
         setInputDevice(on: engine)
 
         let inputNode = engine.inputNode
         let inputFormat = inputNode.inputFormat(forBus: 0)
 
+        #if DEBUG
+        print("[AudioRecorder] Input format — rate: \(inputFormat.sampleRate), ch: \(inputFormat.channelCount)")
+        #endif
+
         guard inputFormat.sampleRate > 0, inputFormat.channelCount > 0 else {
             throw AudioRecorderError.engineFailure(
                 "Dispositivo de audio no listo (sample rate: \(inputFormat.sampleRate)). " +
-                "Si usas AirPods, espera un momento y vuelve a intentarlo."
+                "Si usas AirPods/Bluetooth, espera a que se conecten completamente y vuelve a intentarlo."
             )
         }
 
@@ -218,6 +262,21 @@ final class AudioRecorder {
             throw AudioRecorderError.engineFailure("No se pudo crear el formato objetivo")
         }
 
+        // Create converter once — reused across all tap callbacks
+        guard let converter = AVAudioConverter(from: inputFormat, to: targetFormat) else {
+            throw AudioRecorderError.engineFailure(
+                "No se pudo crear el convertidor de audio (input: \(inputFormat.sampleRate)Hz → \(sampleRate)Hz). " +
+                "El formato del dispositivo puede no ser compatible."
+            )
+        }
+        activeConverter = converter
+
+        // Pre-allocate buffer for conversion (sized for typical tap callback)
+        let maxFrames = AVAudioFrameCount(
+            Double(4096) * (sampleRate / inputFormat.sampleRate) + 1
+        )
+        activeConvertedBuffer = AVAudioPCMBuffer(pcmFormat: targetFormat, frameCapacity: maxFrames)
+
         inputNode.removeTap(onBus: 0)
         installTap(on: inputNode, inputFormat: inputFormat, targetFormat: targetFormat)
 
@@ -225,20 +284,25 @@ final class AudioRecorder {
             try engine.start()
         } catch {
             inputNode.removeTap(onBus: 0)
+            activeConverter = nil
+            activeConvertedBuffer = nil
             throw AudioRecorderError.engineFailure(error.localizedDescription)
         }
     }
 
     private func installTap(on inputNode: AVAudioInputNode, inputFormat: AVAudioFormat, targetFormat: AVAudioFormat) {
         inputNode.installTap(onBus: 0, bufferSize: 4096, format: inputFormat) { [weak self] buffer, _ in
-            guard let self else { return }
-            guard let converter = AVAudioConverter(from: inputFormat, to: targetFormat),
-                  let converted = AVAudioPCMBuffer(
-                    pcmFormat: targetFormat,
-                    frameCapacity: AVAudioFrameCount(
-                        Double(buffer.frameLength) * (self.sampleRate / inputFormat.sampleRate)
-                    )
-                  ) else { return }
+            guard let self,
+                  let converter = self.activeConverter else { return }
+
+            // Size output buffer for this specific input buffer length
+            let neededFrames = AVAudioFrameCount(
+                Double(buffer.frameLength) * (self.sampleRate / inputFormat.sampleRate) + 1
+            )
+            guard let converted = AVAudioPCMBuffer(
+                pcmFormat: targetFormat,
+                frameCapacity: neededFrames
+            ) else { return }
 
             var error: NSError?
             let inputBlock: AVAudioConverterInputBlock = { _, outStatus in
@@ -246,7 +310,15 @@ final class AudioRecorder {
                 return buffer
             }
             converter.convert(to: converted, error: &error, withInputFrom: inputBlock)
-            if error == nil, let channelData = converted.int16ChannelData {
+
+            if let error {
+                #if DEBUG
+                print("[AudioRecorder] Conversion error: \(error.localizedDescription)")
+                #endif
+                return
+            }
+
+            if let channelData = converted.int16ChannelData {
                 let chunk = Array(UnsafeBufferPointer(start: channelData[0], count: Int(converted.frameLength)))
                 self.samples.append(contentsOf: chunk)
             }
@@ -256,6 +328,14 @@ final class AudioRecorder {
     private func restartEngine() throws {
         engine.inputNode.removeTap(onBus: 0)
         engine.stop()
+        activeConverter = nil
+        activeConvertedBuffer = nil
+        // Discard samples from before the format change — they're typically
+        // zeros from the A2DP→HFP transition on Bluetooth devices.
+        samples = []
+        #if DEBUG
+        print("[AudioRecorder] Engine restarting (format change) — samples cleared")
+        #endif
         try startEngine()
     }
 
@@ -266,6 +346,8 @@ final class AudioRecorder {
         }
         engine.inputNode.removeTap(onBus: 0)
         engine.stop()
+        activeConverter = nil
+        activeConvertedBuffer = nil
 
         guard !samples.isEmpty else {
             samples = []

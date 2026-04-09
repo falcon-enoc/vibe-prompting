@@ -159,9 +159,14 @@ final class AppState {
         log.info("Iniciando grabación — server: \(self.config.activeServer.name), mic: \(deviceUID ?? "default")")
         #endif
         do {
+            // Play sound BEFORE starting recorder — once the BT profile switches
+            // from A2DP to HFP for mic input, the audio output device changes and
+            // NSSound may not route correctly.
+            if config.soundFeedback {
+                Self.playSound("Tink")
+            }
             try recorder.startRecording(deviceUID: deviceUID)
             status = .recording
-            Self.playSound("Tink")
         } catch {
             log.error("Error al iniciar grabación: \(error.localizedDescription)")
             status = .error(error.localizedDescription)
@@ -240,16 +245,23 @@ final class AppState {
         }
     }
 
+    /// Retain the sound object so ARC doesn't deallocate it mid-playback.
+    /// NSSound.play() is async — without a strong reference, the sound
+    /// gets destroyed before it finishes playing.
+    private static var activeSound: NSSound?
+
     private static func playSound(_ name: String) {
-        guard let sound = NSSound(named: name) else {
-            guard let sound = NSSound(contentsOf: URL(fileURLWithPath: "/System/Library/Sounds/\(name).aiff"), byReference: true) else { return }
-            sound.stop()
-            sound.volume = 0.5
-            sound.play()
+        let sound: NSSound
+        if let named = NSSound(named: name) {
+            sound = named
+        } else if let fromFile = NSSound(contentsOf: URL(fileURLWithPath: "/System/Library/Sounds/\(name).aiff"), byReference: true) {
+            sound = fromFile
+        } else {
             return
         }
-        sound.stop()
+        activeSound?.stop()
         sound.volume = 0.5
+        activeSound = sound
         sound.play()
     }
 }
