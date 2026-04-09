@@ -18,7 +18,7 @@ server-lint: ## Lint del codigo del servidor
 	cd server && python -m ruff check src/ tests/ && python -m ruff format --check src/ tests/
 
 create-api-key: ## Genera una nueva API key
-	cd server && PYTHONPATH=src python -c "\
+	cd server && PYTHONPATH=src python3 -c "\
 import asyncio; \
 from vibe_prompt.auth import init_db, create_api_key; \
 from vibe_prompt.config import Settings; \
