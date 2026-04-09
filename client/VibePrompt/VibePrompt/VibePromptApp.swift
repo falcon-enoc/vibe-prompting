@@ -11,6 +11,10 @@ struct VibePromptApp: App {
             Image(systemName: menuBarIcon)
         }
         .menuBarExtraStyle(.window)
+
+        Settings {
+            PreferencesView(appState: appState)
+        }
     }
 
     private var menuBarIcon: String {

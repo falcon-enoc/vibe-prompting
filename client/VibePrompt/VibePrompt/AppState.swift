@@ -3,6 +3,14 @@ import os
 
 private let log = Logger(subsystem: "cl.enocfalcon.vibeprompt", category: "AppState")
 
+enum ModelState: Equatable {
+    case unknown
+    case unloaded
+    case loading
+    case loaded(idleSeconds: Int)
+    case error(String)
+}
+
 enum AppStatus: Equatable {
     case idle
     case recording
@@ -27,8 +35,7 @@ final class AppState {
     var lastTranscription: String = ""
     var serverModels: [ServerModelInfo] = []
     var serverCurrentModel: String = ""
-    var modelLoaded: Bool = false
-    var modelIdleSeconds: Int = 0
+    var modelState: ModelState = .unknown
     var idleUnloadMinutes: Int = 10
     var switchingModel: Bool = false
 
@@ -40,6 +47,7 @@ final class AppState {
 
     init() {
         Task { await requestPermissionsIfNeeded() }
+        recorder.warmup()
         setupHotkey()
     }
 
@@ -58,6 +66,9 @@ final class AppState {
         hotkeyManager.onStartRecording = { [weak self] in
             self?.startRecording()
         }
+        hotkeyManager.onCancelRecording = { [weak self] in
+            self?.cancelRecording()
+        }
         hotkeyManager.onStopRecording = { [weak self] in
             self?.stopAndTranscribe()
         }
@@ -70,12 +81,12 @@ final class AppState {
         let server = config.activeServer
         Task { @MainActor in
             switchingModel = true
-            modelLoaded = false
+            modelState = .loading
             do {
                 try await transcriptionService.switchModel(
                     server: server,
                     modelId: modelId,
-                    adminToken: server.apiKey
+                    adminToken: server.adminToken
                 )
                 #if DEBUG
                 log.info("Modelo cambiado a \(modelId)")
@@ -106,14 +117,34 @@ final class AppState {
             // Fetch health
             do {
                 let health = try await transcriptionService.fetchHealth(server: server)
-                modelLoaded = health.modelLoaded
-                modelIdleSeconds = health.idleSeconds
                 idleUnloadMinutes = health.idleUnloadMinutes
+                if health.modelLoaded {
+                    modelState = .loaded(idleSeconds: health.idleSeconds)
+                } else {
+                    modelState = .unloaded
+                }
             } catch {
-                modelLoaded = false
-                modelIdleSeconds = 0
+                modelState = .error("Sin conexión")
             }
         }
+    }
+
+    // MARK: - Polling
+
+    private var pollingTimer: Timer?
+
+    func startPolling() {
+        stopPolling()
+        refreshServerInfo()
+        let interval: TimeInterval = switchingModel ? 2 : 5
+        pollingTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
+            self?.refreshServerInfo()
+        }
+    }
+
+    func stopPolling() {
+        pollingTimer?.invalidate()
+        pollingTimer = nil
     }
 
     // MARK: - Recording
@@ -134,7 +165,21 @@ final class AppState {
         } catch {
             log.error("Error al iniciar grabación: \(error.localizedDescription)")
             status = .error(error.localizedDescription)
+            Task { @MainActor in
+                try? await Task.sleep(for: .seconds(3))
+                if case .error = self.status { self.status = .idle }
+            }
         }
+    }
+
+    /// Cancel recording without transcribing (key combo detected).
+    func cancelRecording() {
+        guard status == .recording else { return }
+        #if DEBUG
+        log.info("Grabación cancelada (combo detectado)")
+        #endif
+        _ = try? recorder.stopRecording()
+        status = .idle
     }
 
     func stopAndTranscribe() {
@@ -168,19 +213,20 @@ final class AppState {
                     server: server,
                     language: "es"
                 )
+                let processed = TextPostProcessor.process(response.text, mode: config.dictationMode)
                 #if DEBUG
-                log.info("Transcripción: \"\(response.text.prefix(80))\"")
+                log.info("Transcripción: \"\(processed.prefix(80))\"")
                 #endif
-                lastTranscription = response.text
+                lastTranscription = processed
 
                 config.addTranscription(TranscriptionEntry(
-                    text: response.text,
+                    text: processed,
                     serverName: server.name,
                     durationMs: response.durationMs
                 ))
 
-                if config.autoPaste && !response.text.isEmpty {
-                    PasteService.paste(response.text)
+                if config.autoPaste && !processed.isEmpty {
+                    PasteService.paste(processed)
                 }
                 status = .success
                 try? await Task.sleep(for: .seconds(2))
@@ -195,14 +241,14 @@ final class AppState {
     }
 
     private static func playSound(_ name: String) {
-        // NSSound.play() is async and mixes with other audio
         guard let sound = NSSound(named: name) else {
-            // Fallback: try direct file path
             guard let sound = NSSound(contentsOf: URL(fileURLWithPath: "/System/Library/Sounds/\(name).aiff"), byReference: true) else { return }
+            sound.stop()
             sound.volume = 0.5
             sound.play()
             return
         }
+        sound.stop()
         sound.volume = 0.5
         sound.play()
     }

@@ -62,7 +62,7 @@ async def init_db(db_path: str) -> None:
 
 async def log_request(db_path: str, **kwargs) -> None:
     if "timestamp" not in kwargs:
-        kwargs["timestamp"] = _now()
+        kwargs["timestamp"] = _now_iso()
     cols = ", ".join(kwargs.keys())
     placeholders = ", ".join("?" for _ in kwargs)
     async with aiosqlite.connect(db_path) as db:

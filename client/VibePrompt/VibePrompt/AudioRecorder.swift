@@ -32,6 +32,26 @@ final class AudioRecorder {
     private var samples: [Int16] = []
     private let sampleRate: Double = 16000
     private var configObserver: NSObjectProtocol?
+    private var warmedUp = false
+
+    /// Prime the HAL by briefly starting the engine. Runs on the same engine
+    /// instance used for recording so the HAL session carries over.
+    func warmup() {
+        guard Self.hasPermission() else { return }
+        let node = engine.inputNode
+        let fmt = node.inputFormat(forBus: 0)
+        guard fmt.sampleRate > 0, fmt.channelCount > 0 else { return }
+        node.installTap(onBus: 0, bufferSize: 1024, format: fmt) { _, _ in }
+        do { try engine.start() } catch { return }
+        // Let HAL initialize briefly
+        RunLoop.current.run(until: Date(timeIntervalSinceNow: 0.2))
+        node.removeTap(onBus: 0)
+        engine.stop()
+        warmedUp = true
+        #if DEBUG
+        print("[AudioRecorder] Warmup completo — HAL primed")
+        #endif
+    }
     private var selectedDeviceUID: String?
 
     // MARK: - Device enumeration
@@ -167,13 +187,21 @@ final class AudioRecorder {
     }
 
     private func startEngine() throws {
-        // Set selected device before accessing inputNode format
+        // Reuse the same engine to avoid orphaned HAL proxy contexts.
+        // Just remove old tap and restart — keeps the HAL session alive.
+        engine.inputNode.removeTap(onBus: 0)
+        if engine.isRunning { engine.stop() }
+
+        try configureAndStart()
+    }
+
+    /// Configure input device, validate format, install tap, and start engine.
+    private func configureAndStart() throws {
         setInputDevice(on: engine)
 
         let inputNode = engine.inputNode
         let inputFormat = inputNode.inputFormat(forBus: 0)
 
-        // Validar que el formato sea usable (Bluetooth puede dar canales=0 si no está listo)
         guard inputFormat.sampleRate > 0, inputFormat.channelCount > 0 else {
             throw AudioRecorderError.engineFailure(
                 "Dispositivo de audio no listo (sample rate: \(inputFormat.sampleRate)). " +
@@ -190,65 +218,15 @@ final class AudioRecorder {
             throw AudioRecorderError.engineFailure("No se pudo crear el formato objetivo")
         }
 
+        inputNode.removeTap(onBus: 0)
         installTap(on: inputNode, inputFormat: inputFormat, targetFormat: targetFormat)
 
-        // Reintentar hasta 4 veces reiniciando el engine completo.
-        // Bluetooth (AirPods HFP) puede tardar 1-2s en estar listo.
-        var lastError: Error?
-        for attempt in 1...4 {
-            do {
-                try engine.start()
-
-                // Verificar que el audio realmente fluye (HAL puede fallar asíncronamente)
-                let startCount = samples.count
-                Thread.sleep(forTimeInterval: 0.5)
-
-                if engine.isRunning && samples.count > startCount {
-                    // Samples are flowing — success
-                    return
-                }
-
-                if !engine.isRunning {
-                    throw AudioRecorderError.engineFailure("Engine se detuvo inesperadamente (intento \(attempt))")
-                }
-
-                // Engine reports running but no samples arrived — HAL I/O likely failed
-                throw AudioRecorderError.engineFailure("Engine arrancó pero no se reciben samples (intento \(attempt))")
-            } catch {
-                lastError = error
-                // Resetear engine completamente antes del siguiente intento
-                engine.inputNode.removeTap(onBus: 0)
-                engine.stop()
-                engine = AVAudioEngine()
-                if attempt < 4 {
-                    let delay = Double(attempt) * 0.8  // 0.8s, 1.6s, 2.4s
-                    #if DEBUG
-                    print("[AudioRecorder] Reintento \(attempt+1) en \(delay)s — \(error.localizedDescription)")
-                    #endif
-                    Thread.sleep(forTimeInterval: delay)
-
-                    // Reinstalar device y tap en el nuevo engine
-                    setInputDevice(on: engine)
-                    let newInputNode = engine.inputNode
-                    let newInputFormat = newInputNode.inputFormat(forBus: 0)
-                    guard newInputFormat.sampleRate > 0, newInputFormat.channelCount > 0,
-                          let newTargetFormat = AVAudioFormat(
-                            commonFormat: .pcmFormatInt16,
-                            sampleRate: sampleRate,
-                            channels: 1,
-                            interleaved: true
-                          ) else { continue }
-                    installTap(on: newInputNode, inputFormat: newInputFormat, targetFormat: newTargetFormat)
-                }
-            }
+        do {
+            try engine.start()
+        } catch {
+            inputNode.removeTap(onBus: 0)
+            throw AudioRecorderError.engineFailure(error.localizedDescription)
         }
-
-        engine.inputNode.removeTap(onBus: 0)
-        throw AudioRecorderError.engineFailure(
-            "No se pudo iniciar el micrófono tras 4 intentos. " +
-            "Prueba seleccionar otro micrófono en la configuración. " +
-            "Último error: \(lastError?.localizedDescription ?? "desconocido")"
-        )
     }
 
     private func installTap(on inputNode: AVAudioInputNode, inputFormat: AVAudioFormat, targetFormat: AVAudioFormat) {
@@ -278,7 +256,6 @@ final class AudioRecorder {
     private func restartEngine() throws {
         engine.inputNode.removeTap(onBus: 0)
         engine.stop()
-        engine = AVAudioEngine()
         try startEngine()
     }
 
@@ -293,6 +270,20 @@ final class AudioRecorder {
         guard !samples.isEmpty else {
             samples = []
             throw AudioRecorderError.noAudioCaptured
+        }
+
+        let peak = samples.map { abs(Int32($0)) }.max() ?? 0
+        #if DEBUG
+        let nonZero = samples.filter { $0 != 0 }.count
+        print("[AudioRecorder] samples: \(samples.count), peak: \(peak), nonZero: \(nonZero)/\(samples.count) (\(samples.count > 0 ? nonZero * 100 / samples.count : 0)%)")
+        #endif
+
+        // Detect silent audio (HAL I/O failure delivers zero-filled buffers)
+        guard peak > 0 else {
+            samples = []
+            throw AudioRecorderError.engineFailure(
+                "El micrófono no capturó audio real. Intenta de nuevo."
+            )
         }
 
         let data = makeWAVData(samples: samples)

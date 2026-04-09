@@ -13,7 +13,10 @@
 		5B91292A365927D1B8DC80A9 /* VibePromptApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67F5D9658E24B969BF3E016D /* VibePromptApp.swift */; };
 		5F7396D9044EC0C93AFD6BCC /* PasteService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 25C2B4F6CBE0C130F3199EE8 /* PasteService.swift */; };
 		62A1A9463791C793E0AAEE11 /* Config.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7E3471E32BAD4F109FF9E82 /* Config.swift */; };
+		A1B2C3D4E5F6A7B8C9D0E1F2 /* PreferencesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6A7B8C9D0E1F3 /* PreferencesView.swift */; };
 		B179B7762F863D290028EF2D /* ModelManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B179B7752F863D290028EF2D /* ModelManager.swift */; };
+		B2C3D4E5F6A7B8C9D0E1F2A3 /* TextPostProcessor.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2C3D4E5F6A7B8C9D0E1F2A4 /* TextPostProcessor.swift */; };
+		C3D4E5F6A7B8C9D0E1F2A3B4 /* LaunchAtLoginManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3D4E5F6A7B8C9D0E1F2A3B5 /* LaunchAtLoginManager.swift */; };
 		ED3847419FFAC2BCEA103761 /* AudioRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 612D6FA7DE80D65A89A82F28 /* AudioRecorder.swift */; };
 		F9341F25392B815846402AA4 /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 143180597420263701D94DF9 /* AppState.swift */; };
 /* End PBXBuildFile section */
@@ -26,8 +29,11 @@
 		612D6FA7DE80D65A89A82F28 /* AudioRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioRecorder.swift; sourceTree = "<group>"; };
 		67F5D9658E24B969BF3E016D /* VibePromptApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VibePromptApp.swift; sourceTree = "<group>"; };
 		7F85A41A8749C836893A87BD /* TranscriptionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptionService.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F6A7B8C9D0E1F3 /* PreferencesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferencesView.swift; sourceTree = "<group>"; };
 		AE82102AFF3FFEDF71838C7D /* MenuBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarView.swift; sourceTree = "<group>"; };
 		B179B7752F863D290028EF2D /* ModelManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelManager.swift; sourceTree = "<group>"; };
+		B2C3D4E5F6A7B8C9D0E1F2A4 /* TextPostProcessor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextPostProcessor.swift; sourceTree = "<group>"; };
+		C3D4E5F6A7B8C9D0E1F2A3B5 /* LaunchAtLoginManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchAtLoginManager.swift; sourceTree = "<group>"; };
 		E7E3471E32BAD4F109FF9E82 /* Config.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Config.swift; sourceTree = "<group>"; };
 		FEC6489EA472FEF534AD13B3 /* VibePrompt.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = VibePrompt.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -49,8 +55,11 @@
 				612D6FA7DE80D65A89A82F28 /* AudioRecorder.swift */,
 				E7E3471E32BAD4F109FF9E82 /* Config.swift */,
 				20586321467D89DF0F7408CD /* HotkeyManager.swift */,
+				C3D4E5F6A7B8C9D0E1F2A3B5 /* LaunchAtLoginManager.swift */,
 				AE82102AFF3FFEDF71838C7D /* MenuBarView.swift */,
 				25C2B4F6CBE0C130F3199EE8 /* PasteService.swift */,
+				A1B2C3D4E5F6A7B8C9D0E1F3 /* PreferencesView.swift */,
+				B2C3D4E5F6A7B8C9D0E1F2A4 /* TextPostProcessor.swift */,
 				7F85A41A8749C836893A87BD /* TranscriptionService.swift */,
 				03BB6C1DA6C3BC16B4313808 /* VibePrompt.entitlements */,
 				67F5D9658E24B969BF3E016D /* VibePromptApp.swift */,
@@ -93,10 +102,9 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
-				LastUpgradeCheck = 1600;
+				LastUpgradeCheck = 2640;
 				TargetAttributes = {
 					D9506E1494F8575DE2E8D173 = {
-						DevelopmentTeam = "";
 						ProvisioningStyle = Automatic;
 					};
 				};
@@ -129,9 +137,12 @@
 				ED3847419FFAC2BCEA103761 /* AudioRecorder.swift in Sources */,
 				62A1A9463791C793E0AAEE11 /* Config.swift in Sources */,
 				1B90187A88E2DA90998192FA /* HotkeyManager.swift in Sources */,
+				C3D4E5F6A7B8C9D0E1F2A3B4 /* LaunchAtLoginManager.swift in Sources */,
 				3EA9A00C57378ED98EC23A55 /* MenuBarView.swift in Sources */,
 				B179B7762F863D290028EF2D /* ModelManager.swift in Sources */,
 				5F7396D9044EC0C93AFD6BCC /* PasteService.swift in Sources */,
+				A1B2C3D4E5F6A7B8C9D0E1F2 /* PreferencesView.swift in Sources */,
+				B2C3D4E5F6A7B8C9D0E1F2A3 /* TextPostProcessor.swift in Sources */,
 				1961C29CFA302B1664128C71 /* TranscriptionService.swift in Sources */,
 				5B91292A365927D1B8DC80A9 /* VibePromptApp.swift in Sources */,
 			);
@@ -147,7 +158,7 @@
 				CODE_SIGN_ENTITLEMENTS = VibePrompt/VibePrompt.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				DEVELOPMENT_TEAM = "";
+				DEAD_CODE_STRIPPING = YES;
 				INFOPLIST_FILE = VibePrompt/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -193,10 +204,13 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = TX3QQ7JVHR;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_NO_COMMON_BLOCKS = YES;
@@ -217,6 +231,7 @@
 				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.9;
@@ -230,7 +245,7 @@
 				CODE_SIGN_ENTITLEMENTS = VibePrompt/VibePrompt.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				DEVELOPMENT_TEAM = "";
+				DEAD_CODE_STRIPPING = YES;
 				INFOPLIST_FILE = VibePrompt/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -276,10 +291,13 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = TX3QQ7JVHR;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
@@ -293,6 +311,7 @@
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
 				SWIFT_VERSION = 5.9;

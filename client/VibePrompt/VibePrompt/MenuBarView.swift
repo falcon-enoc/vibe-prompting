@@ -2,9 +2,7 @@ import SwiftUI
 
 struct MenuBarView: View {
     @Bindable var appState: AppState
-    @State private var inputDevices: [AudioInputDevice] = AudioRecorder.availableInputDevices()
-    @State private var showHistory = false
-    @State private var showModels = false
+    @Environment(\.openSettings) private var openSettings
 
     private var config: AppConfig { appState.config }
 
@@ -22,283 +20,58 @@ struct MenuBarView: View {
                     transcriptionCard
                 }
 
-                // Server section
+                // Servidor activo (solo lectura) con estado del modelo
                 settingsGroup("Servidor") {
-                    pickerRow("Activo", icon: "server.rack", selection: Binding(
-                        get: { config.selectedServerID },
-                        set: {
-                            config.selectedServerID = $0
-                            appState.refreshServerInfo()
-                        }
-                    )) {
-                        ForEach(config.servers) { server in
-                            Text(server.name).tag(server.id)
-                        }
-                    }
-
-                    // Editable fields for active server
-                    editableRow("Nombre", icon: "tag", value: Binding(
-                        get: { config.activeServer.name },
-                        set: { config.updateServer(id: config.selectedServerID, name: $0) }
-                    ))
-                    editableRow("URL", icon: "network", value: Binding(
-                        get: { config.activeServer.url },
-                        set: { config.updateServer(id: config.selectedServerID, url: $0) }
-                    ), monospaced: true)
-                    secureRow("API Key", icon: "key", value: Binding(
-                        get: { config.activeServer.apiKey },
-                        set: { config.updateServer(id: config.selectedServerID, apiKey: $0) }
-                    ))
-
-                    if isLocalServer && !appState.serverModels.isEmpty {
-                        pickerRow("Modelo", icon: "cpu", selection: Binding(
-                            get: { appState.serverCurrentModel },
-                            set: { newModel in
-                                guard newModel != appState.serverCurrentModel else { return }
-                                appState.switchModel(to: newModel)
-                            }
-                        )) {
-                            ForEach(appState.serverModels.filter(\.downloaded)) { model in
-                                Text(model.name).tag(model.id)
-                            }
-                        }
-                        .disabled(appState.switchingModel)
-                    } else {
-                        infoRow("Modelo", icon: "cpu", value: modelDisplayName)
-                    }
-
-                    // Model load status
                     HStack(spacing: 8) {
-                        if appState.switchingModel {
-                            ProgressView()
-                                .controlSize(.small)
-                                .frame(width: 16)
-                            Text("Cargando modelo...")
-                                .font(.system(size: 11))
-                                .foregroundStyle(.blue)
-                        } else {
-                            Image(systemName: appState.modelLoaded ? "bolt.circle.fill" : "moon.zzz")
-                                .font(.system(size: 11))
-                                .foregroundStyle(appState.modelLoaded ? .green : .orange)
-                                .frame(width: 16)
-                            if appState.modelLoaded {
-                                Text("En memoria")
-                                    .font(.system(size: 11))
-                                    .foregroundStyle(.green)
-                                Text("· idle \(appState.modelIdleSeconds)s")
-                                    .font(.system(size: 9))
-                                    .foregroundStyle(.tertiary)
-                            } else {
-                                Text("En espera · recarga ~30s")
-                                    .font(.system(size: 11))
-                                    .foregroundStyle(.orange)
-                            }
-                        }
+                        Image(systemName: "server.rack")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                            .frame(width: 16)
+                        Text(config.activeServer.name)
+                            .font(.system(size: 12))
                         Spacer()
+                        modelStatusBadge
                     }
                     .padding(.horizontal, 10)
-                    .padding(.vertical, 5)
-
-                    // Add / Remove
-                    HStack(spacing: 12) {
-                        Button(action: {
-                            let server = ServerConfig(name: "Nuevo", url: "http://localhost:8420")
-                            config.addServer(server)
-                            config.selectedServerID = server.id
-                        }) {
-                            Label("Agregar", systemImage: "plus.circle")
-                                .font(.system(size: 10))
-                        }
-                        .buttonStyle(.borderless)
-                        .foregroundStyle(.blue)
-
-                        if config.servers.count > 1 {
-                            Button(action: {
-                                config.removeServer(id: config.selectedServerID)
-                                appState.refreshServerInfo()
-                            }) {
-                                Label("Eliminar", systemImage: "trash")
-                                    .font(.system(size: 10))
-                            }
-                            .buttonStyle(.borderless)
-                            .foregroundStyle(.red.opacity(0.7))
-                        }
-
-                        Spacer()
-                    }
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 5)
+                    .padding(.vertical, 7)
                 }
 
-                // Audio section
-                settingsGroup("Audio") {
-                    pickerRow("Micrófono", icon: "mic", selection: Binding(
-                        get: { config.selectedMicrophoneUID },
-                        set: { config.selectedMicrophoneUID = $0 }
-                    )) {
-                        Text("Sistema").tag("")
-                        ForEach(inputDevices) { device in
-                            Text(device.name).tag(device.uid)
-                        }
-                    }
-                }
-
-                // Models section (collapsible)
-                settingsGroup("Modelos") {
-                    Button(action: { withAnimation(.easeInOut(duration: 0.2)) { showModels.toggle() } }) {
-                        HStack(spacing: 8) {
-                            Image(systemName: showModels ? "chevron.down" : "chevron.right")
-                                .font(.system(size: 9, weight: .semibold))
-                                .foregroundStyle(.tertiary)
-                                .frame(width: 16)
-                            Text("\(appState.modelManager.models.filter(\.downloaded).count) de \(appState.modelManager.models.count) descargados")
-                                .font(.system(size: 12))
-                                .foregroundStyle(.secondary)
-                            Spacer()
-                        }
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 7)
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-
-                    if showModels {
-                        ForEach(appState.modelManager.models) { state in
-                            HStack(spacing: 8) {
-                                Image(systemName: state.downloaded ? "checkmark.circle.fill" : "arrow.down.circle")
-                                    .font(.system(size: 11))
-                                    .foregroundStyle(state.downloaded ? .green : .secondary)
-                                    .frame(width: 16)
-                                VStack(alignment: .leading, spacing: 1) {
-                                    Text(state.model.name)
-                                        .font(.system(size: 12))
-                                    Text("\(state.model.sizeMb) MB · \(state.model.backend)")
-                                        .font(.system(size: 9))
-                                        .foregroundStyle(.tertiary)
-                                }
-                                Spacer()
-                                if appState.modelManager.activeDownloadId == state.model.id {
-                                    ProgressView(value: appState.modelManager.downloadProgress)
-                                        .frame(width: 50)
-                                } else if !state.downloaded {
-                                    Button("Descargar") {
-                                        Task {
-                                            await appState.modelManager.download(
-                                                modelId: state.model.id,
-                                                hfToken: config.hfToken.isEmpty ? nil : config.hfToken
-                                            )
-                                        }
-                                    }
-                                    .buttonStyle(.borderless)
-                                    .font(.system(size: 10))
-                                    .foregroundStyle(.blue)
-                                } else {
-                                    Button(action: { appState.modelManager.delete(modelId: state.model.id) }) {
-                                        Image(systemName: "trash")
-                                            .font(.system(size: 10))
-                                            .foregroundStyle(.red.opacity(0.6))
-                                    }
-                                    .buttonStyle(.plain)
-                                }
-                            }
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 5)
-                        }
-
-                        if let error = appState.modelManager.errorMessage {
-                            HStack(spacing: 6) {
-                                Image(systemName: "exclamationmark.triangle.fill")
-                                    .font(.system(size: 10))
-                                    .foregroundStyle(.red)
-                                Text(error)
-                                    .font(.system(size: 10))
-                                    .foregroundStyle(.red)
-                                    .lineLimit(2)
-                                Spacer()
-                            }
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 5)
-                        }
-
-                        secureRow("HF Token", icon: "key.fill", value: Binding(
-                            get: { config.hfToken },
-                            set: { config.hfToken = $0 }
-                        ))
-                    }
-                }
-
-                // Behavior section
-                settingsGroup("Comportamiento") {
-                    pickerRow("Modo", icon: "command", selection: Binding(
-                        get: { config.hotkeyModeRaw },
-                        set: { config.hotkeyModeRaw = $0 }
-                    )) {
-                        ForEach(HotkeyMode.allCases, id: \.rawValue) { mode in
-                            Text(mode.label).tag(mode.rawValue)
-                        }
-                    }
-
+                // Toggle rápido: auto-pegar
+                settingsGroup("Rápido") {
                     toggleRow("Auto-pegar", icon: "doc.on.clipboard", isOn: Binding(
                         get: { config.autoPaste },
                         set: { config.autoPaste = $0 }
                     ))
                 }
 
-                // History
+                // 3 items más recientes del historial
                 if !config.transcriptionHistory.isEmpty {
                     settingsGroup("Historial") {
-                        let items = Array(config.transcriptionHistory.prefix(showHistory ? 5 : 3))
-                        ScrollView {
-                            VStack(spacing: 1) {
-                                ForEach(items) { entry in
-                                    HStack(spacing: 6) {
-                                        VStack(alignment: .leading, spacing: 2) {
-                                            Text(entry.text)
-                                                .font(.system(size: 11))
-                                                .lineLimit(1)
-                                            Text("\(entry.serverName) · \(entry.timestamp, format: .dateTime.hour().minute())")
-                                                .font(.system(size: 9))
-                                                .foregroundStyle(.tertiary)
-                                        }
-                                        Spacer()
-                                        Button(action: {
-                                            NSPasteboard.general.clearContents()
-                                            NSPasteboard.general.setString(entry.text, forType: .string)
-                                        }) {
-                                            Image(systemName: "doc.on.doc")
-                                                .font(.system(size: 9))
-                                                .foregroundStyle(.secondary)
-                                        }
-                                        .buttonStyle(.plain)
-                                    }
-                                    .padding(.horizontal, 10)
-                                    .padding(.vertical, 5)
+                        let items = Array(config.transcriptionHistory.prefix(3))
+                        ForEach(items) { entry in
+                            HStack(spacing: 6) {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(entry.text)
+                                        .font(.system(size: 11))
+                                        .lineLimit(1)
+                                    Text("\(entry.serverName) \u{00B7} \(entry.timestamp, format: .dateTime.hour().minute())")
+                                        .font(.system(size: 9))
+                                        .foregroundStyle(.tertiary)
                                 }
-                            }
-                        }
-                        .frame(maxHeight: showHistory ? 120 : .infinity)
-
-                        HStack(spacing: 12) {
-                            if config.transcriptionHistory.count > 3 {
-                                Button(showHistory ? "Menos" : "Ver más") {
-                                    withAnimation { showHistory.toggle() }
+                                Spacer()
+                                Button(action: {
+                                    NSPasteboard.general.clearContents()
+                                    NSPasteboard.general.setString(entry.text, forType: .string)
+                                }) {
+                                    Image(systemName: "doc.on.doc")
+                                        .font(.system(size: 9))
+                                        .foregroundStyle(.secondary)
                                 }
-                                .buttonStyle(.borderless)
-                                .font(.system(size: 10))
-                                .foregroundStyle(.blue)
+                                .buttonStyle(.plain)
                             }
-
-                            Button("Limpiar") {
-                                config.clearHistory()
-                            }
-                            .buttonStyle(.borderless)
-                            .font(.system(size: 10))
-                            .foregroundStyle(.red.opacity(0.7))
-
-                            Spacer()
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 5)
                         }
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 5)
                     }
                 }
             }
@@ -307,25 +80,98 @@ struct MenuBarView: View {
 
             separator
 
-            Button(action: { NSApplication.shared.terminate(nil) }) {
-                HStack {
-                    Image(systemName: "power")
-                        .font(.system(size: 10, weight: .semibold))
-                    Text("Salir")
-                        .font(.system(size: 12))
+            // Preferencias y Salir
+            VStack(spacing: 0) {
+                Button {
+                    openSettings()
+                    DispatchQueue.main.async {
+                        NSApp.activate(ignoringOtherApps: true)
+                        for window in NSApp.windows where window.identifier?.rawValue == "com_apple_SwiftUI_Settings_window" {
+                            window.makeKeyAndOrderFront(nil)
+                        }
+                    }
+                } label: {
+                    HStack {
+                        Image(systemName: "gearshape")
+                            .font(.system(size: 10, weight: .semibold))
+                        Text("Preferencias...")
+                            .font(.system(size: 12))
+                    }
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .contentShape(Rectangle())
                 }
-                .foregroundStyle(.secondary)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 10)
-                .contentShape(Rectangle())
+                .buttonStyle(.plain)
+
+                Button(action: { NSApplication.shared.terminate(nil) }) {
+                    HStack {
+                        Image(systemName: "power")
+                            .font(.system(size: 10, weight: .semibold))
+                        Text("Salir")
+                            .font(.system(size: 12))
+                    }
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
             }
-            .buttonStyle(.plain)
         }
         .frame(width: 320)
         .onAppear {
-            inputDevices = AudioRecorder.availableInputDevices()
-            appState.refreshServerInfo()
+            appState.startPolling()
+        }
+        .onDisappear {
+            appState.stopPolling()
+        }
+    }
+
+    // MARK: - Model Status Badge
+
+    @ViewBuilder
+    private var modelStatusBadge: some View {
+        HStack(spacing: 4) {
+            switch appState.modelState {
+            case .unknown:
+                Image(systemName: "circle")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.gray)
+                Text("Consultando...")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.gray)
+            case .unloaded:
+                Image(systemName: "moon.zzz")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.orange)
+                Text("En espera")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.orange)
+            case .loading:
+                ProgressView()
+                    .controlSize(.small)
+                    .frame(width: 12)
+                Text("Cargando...")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.blue)
+            case .loaded(let idle):
+                Image(systemName: "bolt.circle.fill")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.green)
+                Text("En memoria · \(idle)s")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.green)
+            case .error:
+                Image(systemName: "exclamationmark.triangle")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.red)
+                Text("Sin conexión")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.red)
+            }
         }
     }
 
@@ -429,62 +275,6 @@ struct MenuBarView: View {
 
     // MARK: - Row Components
 
-    private func pickerRow<S: Hashable, Content: View>(
-        _ label: String, icon: String, selection: Binding<S>, @ViewBuilder content: () -> Content
-    ) -> some View {
-        HStack(spacing: 8) {
-            Image(systemName: icon).font(.system(size: 11)).foregroundStyle(.secondary).frame(width: 16)
-            Text(label).font(.system(size: 12))
-            Spacer()
-            Picker("", selection: selection) { content() }
-                .labelsHidden().pickerStyle(.menu).frame(maxWidth: 140)
-        }
-        .padding(.horizontal, 10).padding(.vertical, 7)
-    }
-
-    private func editableRow(_ label: String, icon: String, value: Binding<String>, monospaced: Bool = false) -> some View {
-        HStack(spacing: 8) {
-            Image(systemName: icon).font(.system(size: 11)).foregroundStyle(.secondary).frame(width: 16)
-            Text(label).font(.system(size: 12))
-            Spacer()
-            TextField("", text: value)
-                .textFieldStyle(.plain)
-                .font(.system(size: 11, design: monospaced ? .monospaced : .default))
-                .frame(maxWidth: 140)
-                .padding(.horizontal, 6).padding(.vertical, 3)
-                .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 4))
-        }
-        .padding(.horizontal, 10).padding(.vertical, 7)
-    }
-
-    private func secureRow(_ label: String, icon: String, value: Binding<String>) -> some View {
-        HStack(spacing: 8) {
-            Image(systemName: icon).font(.system(size: 11)).foregroundStyle(.secondary).frame(width: 16)
-            Text(label).font(.system(size: 12))
-            Spacer()
-            SecureField("", text: value)
-                .textFieldStyle(.plain)
-                .font(.system(size: 11, design: .monospaced))
-                .frame(maxWidth: 140)
-                .padding(.horizontal, 6).padding(.vertical, 3)
-                .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 4))
-        }
-        .padding(.horizontal, 10).padding(.vertical, 7)
-    }
-
-    private func infoRow(_ label: String, icon: String, value: String) -> some View {
-        HStack(spacing: 8) {
-            Image(systemName: icon).font(.system(size: 11)).foregroundStyle(.secondary).frame(width: 16)
-            Text(label).font(.system(size: 12))
-            Spacer()
-            Text(value)
-                .font(.system(size: 11))
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-        }
-        .padding(.horizontal, 10).padding(.vertical, 7)
-    }
-
     private func toggleRow(_ label: String, icon: String, isOn: Binding<Bool>) -> some View {
         HStack(spacing: 8) {
             Image(systemName: icon).font(.system(size: 11)).foregroundStyle(.secondary).frame(width: 16)
@@ -500,17 +290,6 @@ struct MenuBarView: View {
     }
 
     // MARK: - Helpers
-
-    private var isLocalServer: Bool {
-        let url = config.activeServer.url.lowercased()
-        return url.contains("localhost") || url.contains("127.0.0.1")
-    }
-
-    private var modelDisplayName: String {
-        if appState.serverCurrentModel.isEmpty { return "—" }
-        return appState.serverModels.first(where: { $0.id == appState.serverCurrentModel })?.name
-            ?? appState.serverCurrentModel.components(separatedBy: "/").last ?? "—"
-    }
 
     private var statusIcon: String {
         switch appState.status {

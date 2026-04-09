@@ -12,19 +12,47 @@ enum HotkeyMode: String, CaseIterable {
     }
 }
 
+enum DictationMode: String, CaseIterable {
+    case raw = "raw"
+    case informal = "informal"
+    case bullets = "bullets"
+    case technical = "technical"
+
+    var label: String {
+        switch self {
+        case .raw: "Texto limpio"
+        case .informal: "Mensaje informal"
+        case .bullets: "Nota con bullets"
+        case .technical: "Comando técnico"
+        }
+    }
+}
+
 struct ServerConfig: Codable, Identifiable, Hashable {
     let id: UUID
     var name: String
     var url: String
     var apiKey: String
     var hfToken: String
+    var adminToken: String
 
-    init(id: UUID = UUID(), name: String = "Local", url: String = "http://localhost:8420", apiKey: String = "", hfToken: String = "") {
+    init(id: UUID = UUID(), name: String = "Local", url: String = "http://127.0.0.1:8420", apiKey: String = "", hfToken: String = "", adminToken: String = "") {
         self.id = id
         self.name = name
         self.url = url
         self.apiKey = apiKey
         self.hfToken = hfToken
+        self.adminToken = adminToken
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        name = try container.decode(String.self, forKey: .name)
+        url = try container.decode(String.self, forKey: .url)
+        apiKey = try container.decode(String.self, forKey: .apiKey)
+        hfToken = try container.decode(String.self, forKey: .hfToken)
+        adminToken = try container.decodeIfPresent(String.self, forKey: .adminToken) ?? ""
     }
 }
 
@@ -77,6 +105,21 @@ final class AppConfig {
         didSet { UserDefaults.standard.set(hotkeyModeRaw, forKey: "hotkeyModeRaw") }
     }
 
+    var dictationModeRaw: String = UserDefaults.standard.string(forKey: "dictationModeRaw") ?? DictationMode.raw.rawValue {
+        didSet { UserDefaults.standard.set(dictationModeRaw, forKey: "dictationModeRaw") }
+    }
+
+    var soundFeedback: Bool = UserDefaults.standard.object(forKey: "soundFeedback") as? Bool ?? true {
+        didSet { UserDefaults.standard.set(soundFeedback, forKey: "soundFeedback") }
+    }
+
+    var launchAtLogin: Bool = UserDefaults.standard.bool(forKey: "launchAtLogin") {
+        didSet {
+            UserDefaults.standard.set(launchAtLogin, forKey: "launchAtLogin")
+            LaunchAtLoginManager.update(launchAtLogin)
+        }
+    }
+
     var transcriptionHistory: [TranscriptionEntry] = {
         guard let data = UserDefaults.standard.data(forKey: "transcriptionHistory"),
               let decoded = try? JSONDecoder().decode([TranscriptionEntry].self, from: data) else { return [] }
@@ -96,6 +139,11 @@ final class AppConfig {
         set { hotkeyModeRaw = newValue.rawValue }
     }
 
+    var dictationMode: DictationMode {
+        get { DictationMode(rawValue: dictationModeRaw) ?? .raw }
+        set { dictationModeRaw = newValue.rawValue }
+    }
+
     var activeServer: ServerConfig {
         servers.first(where: { $0.id == selectedServerID }) ?? servers.first ?? ServerConfig()
     }
@@ -108,12 +156,13 @@ final class AppConfig {
         servers.append(s)
     }
 
-    func updateServer(id: UUID, name: String? = nil, url: String? = nil, apiKey: String? = nil, hfToken: String? = nil) {
+    func updateServer(id: UUID, name: String? = nil, url: String? = nil, apiKey: String? = nil, hfToken: String? = nil, adminToken: String? = nil) {
         guard let idx = servers.firstIndex(where: { $0.id == id }) else { return }
         if let name { servers[idx].name = name }
         if let url { servers[idx].url = Self.normalizeURL(url) }
         if let apiKey { servers[idx].apiKey = apiKey }
         if let hfToken { servers[idx].hfToken = hfToken }
+        if let adminToken { servers[idx].adminToken = adminToken }
     }
 
     func removeServer(id: UUID) {

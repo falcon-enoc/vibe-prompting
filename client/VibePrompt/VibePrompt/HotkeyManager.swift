@@ -8,6 +8,7 @@ private let log = Logger(subsystem: "cl.enocfalcon.vibeprompt", category: "Hotke
 final class HotkeyManager {
     var onStartRecording: (() -> Void)?
     var onStopRecording: (() -> Void)?
+    var onCancelRecording: (() -> Void)?
     var modeProvider: () -> HotkeyMode = { .pushToTalk }
 
     private var eventTap: CFMachPort?
@@ -15,10 +16,10 @@ final class HotkeyManager {
     private var isRecording = false
     private var permissionTimer: Timer?
     private var healthTimer: Timer?
-    private var pendingAction: DispatchWorkItem?
+    private var pendingStart: DispatchWorkItem?
 
     private static let rightCommandKeyCode: UInt16 = 0x36
-    private static let activationDelay: TimeInterval = 0.25
+    private static let comboDetectionDelay: TimeInterval = 0.15
 
     func start() {
         guard AXIsProcessTrusted() else {
@@ -105,8 +106,8 @@ final class HotkeyManager {
     func stop() {
         healthTimer?.invalidate()
         healthTimer = nil
-        pendingAction?.cancel()
-        pendingAction = nil
+        pendingStart?.cancel()
+        pendingStart = nil
         if let tap = eventTap {
             CGEvent.tapEnable(tap: tap, enable: false)
         }
@@ -124,18 +125,16 @@ final class HotkeyManager {
         guard let nsEvent = NSEvent(cgEvent: event) else { return }
         let isRightCmd = nsEvent.keyCode == Self.rightCommandKeyCode
 
-        // If not Right Cmd, cancel any pending activation (another key in a combo)
+        // If not Right Cmd, it's a combo — cancel pending start or active recording
         if !isRightCmd {
-            pendingAction?.cancel()
-            pendingAction = nil
+            cancelPending()
             return
         }
 
-        // Ignore if other modifiers are held (Shift, Ctrl, Alt = key combo like Cmd+Shift+Z)
+        // Other modifiers held = key combo (Cmd+Shift+Z etc)
         let otherModifiers: CGEventFlags = [.maskShift, .maskControl, .maskAlternate]
         guard flags.intersection(otherModifiers).isEmpty else {
-            pendingAction?.cancel()
-            pendingAction = nil
+            cancelPending()
             return
         }
 
@@ -146,23 +145,21 @@ final class HotkeyManager {
             if cmdDown && !isRecording {
                 scheduleStart()
             } else if !cmdDown && isRecording {
-                // Stop immediately — no delay for stopping
-                pendingAction?.cancel()
-                pendingAction = nil
                 #if DEBUG
                 log.info("Right Cmd UP → stopAndTranscribe")
                 #endif
                 isRecording = false
                 DispatchQueue.main.async { self.onStopRecording?() }
+            } else if !cmdDown && pendingStart != nil {
+                // Key released before recording started — just cancel
+                pendingStart?.cancel()
+                pendingStart = nil
             }
         case .toggle:
             if cmdDown {
-                if !isRecording {
+                if !isRecording && pendingStart == nil {
                     scheduleStart()
-                } else {
-                    // Stop immediately
-                    pendingAction?.cancel()
-                    pendingAction = nil
+                } else if isRecording {
                     #if DEBUG
                     log.info("Right Cmd toggle → stopAndTranscribe")
                     #endif
@@ -173,18 +170,37 @@ final class HotkeyManager {
         }
     }
 
+    /// Schedule recording start after a short delay to detect combos first.
+    /// This prevents the audio engine from starting (and muting system audio) on key combos.
     private func scheduleStart() {
-        pendingAction?.cancel()
+        pendingStart?.cancel()
         let item = DispatchWorkItem { [weak self] in
-            guard let self, self.pendingAction != nil else { return }
-            self.pendingAction = nil
+            guard let self, self.pendingStart != nil else { return }
+            self.pendingStart = nil
             #if DEBUG
-            log.info("Right Cmd → startRecording (tras \(Self.activationDelay)s)")
+            log.info("Right Cmd → startRecording (tras \(Self.comboDetectionDelay)s)")
             #endif
             self.isRecording = true
             self.onStartRecording?()
         }
-        pendingAction = item
-        DispatchQueue.main.asyncAfter(deadline: .now() + Self.activationDelay, execute: item)
+        pendingStart = item
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.comboDetectionDelay, execute: item)
+    }
+
+    /// Cancel pending start or active recording (combo detected).
+    private func cancelPending() {
+        if pendingStart != nil {
+            // Engine hasn't started yet — just cancel the pending start
+            pendingStart?.cancel()
+            pendingStart = nil
+            return
+        }
+        if isRecording {
+            #if DEBUG
+            log.info("Combo detectado → cancelando grabación activa")
+            #endif
+            isRecording = false
+            DispatchQueue.main.async { self.onCancelRecording?() }
+        }
     }
 }
