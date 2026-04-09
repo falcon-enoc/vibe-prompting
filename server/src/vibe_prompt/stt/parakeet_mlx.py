@@ -37,7 +37,7 @@ class ParakeetMLXBackend:
     def _transcribe_sync(self, audio: np.ndarray) -> str:
         if not self._loaded:
             self._warmup()
-        audio_mx = mx.array(audio, dtype=mx.bfloat16)
+        audio_mx = mx.array(audio, dtype=mx.float32)
         mel = get_logmel(audio_mx, self._model.preprocessor_config)
         result = self._model.generate(mel)[0]
         return result.text.strip()
