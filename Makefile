@@ -1,3 +1,5 @@
+VENV_PYTHON := $(shell [ -f .venv/bin/python3 ] && echo .venv/bin/python3 || echo python3)
+
 .PHONY: help server-install server-dev server-test server-lint create-api-key client-open client-build client-archive client-dmg client-clean dev test lint deploy-server deploy-install tunnel-setup tunnel-up tunnel-down tunnel-logs
 
 help: ## Muestra los targets disponibles
@@ -18,7 +20,7 @@ server-lint: ## Lint del codigo del servidor
 	cd server && python -m ruff check src/ tests/ && python -m ruff format --check src/ tests/
 
 create-api-key: ## Genera una nueva API key
-	cd server && PYTHONPATH=src python3 -c "\
+	cd server && PYTHONPATH=src $(VENV_PYTHON) -c "\
 import asyncio; \
 from vibe_prompt.auth import init_db, create_api_key; \
 from vibe_prompt.config import Settings; \
