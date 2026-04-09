@@ -8,7 +8,8 @@ NC='\033[0m'
 
 echo -e "${GREEN}=== Vibe Prompt Server Setup ===${NC}"
 
-INSTALL_DIR="$HOME/vibe-prompt"
+# Detectar directorio raiz del proyecto (donde esta este script: deploy/setup-mac-mini.sh)
+INSTALL_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 VENV_DIR="$INSTALL_DIR/.venv"
 LOG_DIR="$HOME/Library/Logs/vibe-prompt"
 PLIST_SRC="$INSTALL_DIR/deploy/vibe-prompt-server.plist"
@@ -118,8 +119,8 @@ asyncio.run(main())
 # 8. Instalar launchd plist
 echo -e "${YELLOW}Instalando servicio launchd...${NC}"
 
-# Reemplazar placeholder USER con el usuario actual
-sed "s|/Users/USER|$HOME|g" "$PLIST_SRC" > "$PLIST_DST"
+# Reemplazar placeholders con rutas reales
+sed -e "s|/Users/USER|$HOME|g" -e "s|INSTALL_DIR|$INSTALL_DIR|g" "$PLIST_SRC" > "$PLIST_DST"
 
 # Descargar si ya estaba cargado
 launchctl bootout "gui/$(id -u)/com.vibeprompt.server" 2>/dev/null || true

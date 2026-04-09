@@ -8,7 +8,7 @@
 
     <key>ProgramArguments</key>
     <array>
-        <string>/Users/USER/vibe-prompt/.venv/bin/uvicorn</string>
+        <string>INSTALL_DIR/.venv/bin/uvicorn</string>
         <string>vibe_prompt.main:app</string>
         <string>--host</string>
         <string>0.0.0.0</string>
@@ -19,7 +19,7 @@
     </array>
 
     <key>WorkingDirectory</key>
-    <string>/Users/USER/vibe-prompt/server</string>
+    <string>INSTALL_DIR/server</string>
 
     <key>RunAtLoad</key>
     <true/>
@@ -38,7 +38,7 @@
         <key>PATH</key>
         <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
         <key>PYTHONPATH</key>
-        <string>/Users/USER/vibe-prompt/server/src</string>
+        <string>INSTALL_DIR/server/src</string>
     </dict>
 </dict>
 </plist>
