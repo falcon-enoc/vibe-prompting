@@ -17,17 +17,34 @@ PLIST_DST="$HOME/Library/LaunchAgents/com.vibeprompt.server.plist"
 # 1. Verificar prerequisitos
 echo -e "${YELLOW}Verificando prerequisitos...${NC}"
 
-if ! command -v python3 &>/dev/null; then
-    echo -e "${RED}Python 3 no encontrado. Instala con: brew install python@3.12${NC}"
-    exit 1
+# Buscar Python 3.12 o 3.13 (MLX no soporta 3.14+)
+PYTHON_BIN=""
+for candidate in python3.12 python3.13; do
+    if command -v "$candidate" &>/dev/null; then
+        PYTHON_BIN="$candidate"
+        break
+    fi
+done
+
+# Fallback a python3 si es version compatible
+if [ -z "$PYTHON_BIN" ]; then
+    if command -v python3 &>/dev/null; then
+        PY_MINOR=$(python3 -c 'import sys; print(sys.version_info.minor)')
+        if [ "$PY_MINOR" -ge 12 ] && [ "$PY_MINOR" -le 13 ]; then
+            PYTHON_BIN="python3"
+        else
+            echo -e "${RED}Python 3.12 o 3.13 requerido (encontrado 3.$PY_MINOR).${NC}"
+            echo "  Instala con: brew install python@3.12"
+            exit 1
+        fi
+    else
+        echo -e "${RED}Python 3 no encontrado. Instala con: brew install python@3.12${NC}"
+        exit 1
+    fi
 fi
 
-PYTHON_VERSION=$(python3 -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')
-echo "Python version: $PYTHON_VERSION"
-
-if [[ "$PYTHON_VERSION" < "3.12" ]]; then
-    echo -e "${YELLOW}Advertencia: se recomienda Python 3.12+${NC}"
-fi
+PYTHON_VERSION=$($PYTHON_BIN -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')
+echo "Usando: $PYTHON_BIN (Python $PYTHON_VERSION)"
 
 # 2. Crear directorios
 echo -e "${YELLOW}Creando directorios...${NC}"
@@ -35,10 +52,22 @@ mkdir -p "$INSTALL_DIR/server/data"
 mkdir -p "$LOG_DIR"
 mkdir -p "$HOME/Library/LaunchAgents"
 
-# 3. Crear virtual environment
-if [ ! -d "$VENV_DIR" ]; then
-    echo -e "${YELLOW}Creando virtual environment...${NC}"
-    python3 -m venv "$VENV_DIR"
+# 3. Crear virtual environment (recrear si la version de Python no coincide)
+RECREATE_VENV=false
+if [ -d "$VENV_DIR" ]; then
+    VENV_PY_VERSION=$("$VENV_DIR/bin/python3" -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')
+    if [ "$VENV_PY_VERSION" != "$PYTHON_VERSION" ]; then
+        echo -e "${YELLOW}Venv existente usa Python $VENV_PY_VERSION, se necesita $PYTHON_VERSION. Recreando...${NC}"
+        rm -rf "$VENV_DIR"
+        RECREATE_VENV=true
+    fi
+else
+    RECREATE_VENV=true
+fi
+
+if [ "$RECREATE_VENV" = true ]; then
+    echo -e "${YELLOW}Creando virtual environment con Python $PYTHON_VERSION...${NC}"
+    $PYTHON_BIN -m venv "$VENV_DIR"
 fi
 
 source "$VENV_DIR/bin/activate"
