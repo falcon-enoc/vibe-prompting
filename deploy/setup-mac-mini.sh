@@ -60,13 +60,9 @@ fi
 echo -e "${YELLOW}Descargando y preparando modelo STT (puede tardar varios minutos)...${NC}"
 cd "$INSTALL_DIR/server"
 PYTHONPATH=src python3 -c "
-import numpy as np
-import mlx_whisper
-print('Descargando modelo whisper-base-mlx...')
-mlx_whisper.transcribe(
-    np.zeros(16000, dtype=np.float32),
-    path_or_hf_repo='mlx-community/whisper-base-mlx',
-)
+from huggingface_hub import snapshot_download
+print('Descargando modelo parakeet-tdt-0.6b-v3 (~2.3 GB)...')
+snapshot_download('mlx-community/parakeet-tdt-0.6b-v3')
 print('Modelo listo.')
 "
 

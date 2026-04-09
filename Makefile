@@ -1,4 +1,4 @@
-.PHONY: help server-install server-dev server-test server-lint create-api-key client-open client-build client-archive client-dmg client-clean dev test lint deploy-server deploy-install
+.PHONY: help server-install server-dev server-test server-lint create-api-key client-open client-build client-archive client-dmg client-clean dev test lint deploy-server deploy-install tunnel-setup tunnel-up tunnel-down tunnel-logs
 
 help: ## Muestra los targets disponibles
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
@@ -111,3 +111,17 @@ deploy-install: ## Provision inicial del Mac Mini (requiere MAC_MINI_HOST=user@h
 		--exclude='*.pyc' \
 		--exclude='data/'
 	ssh $(MAC_MINI_HOST) "chmod +x ~/vibe-prompt/deploy/setup-mac-mini.sh && ~/vibe-prompt/deploy/setup-mac-mini.sh"
+
+# --- Tunnel (Cloudflare) ---
+
+tunnel-setup: ## Setup inicial del tunnel Cloudflare (interactivo)
+	deploy/tunnel/setup-tunnel.sh
+
+tunnel-up: ## Levanta el tunnel Cloudflare
+	cd deploy/tunnel && docker compose up -d
+
+tunnel-down: ## Para el tunnel Cloudflare
+	cd deploy/tunnel && docker compose down
+
+tunnel-logs: ## Muestra logs del tunnel
+	cd deploy/tunnel && docker compose logs -f
