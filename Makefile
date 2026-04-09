@@ -1,4 +1,4 @@
-VENV_PYTHON := $(shell [ -f .venv/bin/python3 ] && echo .venv/bin/python3 || echo python3)
+VENV_PYTHON := $(shell [ -f .venv/bin/python3 ] && echo $(CURDIR)/.venv/bin/python3 || echo python3)
 
 .PHONY: help server-install server-dev server-test server-lint create-api-key client-open client-build client-archive client-dmg client-clean dev test lint deploy-server deploy-install tunnel-setup tunnel-up tunnel-down tunnel-logs
 
