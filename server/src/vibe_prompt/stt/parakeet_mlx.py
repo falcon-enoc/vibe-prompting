@@ -20,7 +20,7 @@ class ParakeetMLXBackend:
     def _warmup(self) -> None:
         print(f"Loading model {self._model_path}...")
         self._model = from_pretrained(self._model_path)
-        silence = mx.zeros((16000,), dtype=mx.bfloat16)
+        silence = mx.zeros((32000,), dtype=mx.float32)
         mel = get_logmel(silence, self._model.preprocessor_config)
         self._model.generate(mel)
         self._loaded = True
