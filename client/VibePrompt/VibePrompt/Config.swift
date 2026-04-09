@@ -132,6 +132,10 @@ final class AppConfig {
         didSet { UserDefaults.standard.set(hfToken, forKey: "hfToken") }
     }
 
+    var hasCompletedOnboarding: Bool = UserDefaults.standard.bool(forKey: "hasCompletedOnboarding") {
+        didSet { UserDefaults.standard.set(hasCompletedOnboarding, forKey: "hasCompletedOnboarding") }
+    }
+
     // MARK: - Computed
 
     var hotkeyMode: HotkeyMode {

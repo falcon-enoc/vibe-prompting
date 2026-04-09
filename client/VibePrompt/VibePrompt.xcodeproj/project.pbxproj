@@ -19,6 +19,7 @@
 		C3D4E5F6A7B8C9D0E1F2A3B4 /* LaunchAtLoginManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3D4E5F6A7B8C9D0E1F2A3B5 /* LaunchAtLoginManager.swift */; };
 		ED3847419FFAC2BCEA103761 /* AudioRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 612D6FA7DE80D65A89A82F28 /* AudioRecorder.swift */; };
 		F9341F25392B815846402AA4 /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 143180597420263701D94DF9 /* AppState.swift */; };
+		D4E5F6A7B8C9D0E1F2A3B4C5 /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4E5F6A7B8C9D0E1F2A3B4C6 /* OnboardingView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -34,6 +35,7 @@
 		B179B7752F863D290028EF2D /* ModelManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelManager.swift; sourceTree = "<group>"; };
 		B2C3D4E5F6A7B8C9D0E1F2A4 /* TextPostProcessor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextPostProcessor.swift; sourceTree = "<group>"; };
 		C3D4E5F6A7B8C9D0E1F2A3B5 /* LaunchAtLoginManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchAtLoginManager.swift; sourceTree = "<group>"; };
+		D4E5F6A7B8C9D0E1F2A3B4C6 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
 		E7E3471E32BAD4F109FF9E82 /* Config.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Config.swift; sourceTree = "<group>"; };
 		FEC6489EA472FEF534AD13B3 /* VibePrompt.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = VibePrompt.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -57,6 +59,7 @@
 				20586321467D89DF0F7408CD /* HotkeyManager.swift */,
 				C3D4E5F6A7B8C9D0E1F2A3B5 /* LaunchAtLoginManager.swift */,
 				AE82102AFF3FFEDF71838C7D /* MenuBarView.swift */,
+				D4E5F6A7B8C9D0E1F2A3B4C6 /* OnboardingView.swift */,
 				25C2B4F6CBE0C130F3199EE8 /* PasteService.swift */,
 				A1B2C3D4E5F6A7B8C9D0E1F3 /* PreferencesView.swift */,
 				B2C3D4E5F6A7B8C9D0E1F2A4 /* TextPostProcessor.swift */,
@@ -140,6 +143,7 @@
 				C3D4E5F6A7B8C9D0E1F2A3B4 /* LaunchAtLoginManager.swift in Sources */,
 				3EA9A00C57378ED98EC23A55 /* MenuBarView.swift in Sources */,
 				B179B7762F863D290028EF2D /* ModelManager.swift in Sources */,
+				D4E5F6A7B8C9D0E1F2A3B4C5 /* OnboardingView.swift in Sources */,
 				5F7396D9044EC0C93AFD6BCC /* PasteService.swift in Sources */,
 				A1B2C3D4E5F6A7B8C9D0E1F2 /* PreferencesView.swift in Sources */,
 				B2C3D4E5F6A7B8C9D0E1F2A3 /* TextPostProcessor.swift in Sources */,

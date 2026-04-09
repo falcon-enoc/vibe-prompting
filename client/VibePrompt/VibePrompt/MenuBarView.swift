@@ -3,11 +3,16 @@ import SwiftUI
 struct MenuBarView: View {
     @Bindable var appState: AppState
     @Environment(\.openSettings) private var openSettings
+    @Environment(\.openWindow) private var openWindow
 
     private var config: AppConfig { appState.config }
 
     var body: some View {
         VStack(spacing: 0) {
+            if let issue = appState.startupIssue {
+                startupIssueBanner(issue)
+            }
+
             statusHeader
                 .padding(.horizontal, 16)
                 .padding(.top, 14)
@@ -123,6 +128,12 @@ struct MenuBarView: View {
         }
         .frame(width: 320)
         .onAppear {
+            if appState.needsOnboarding {
+                openWindow(id: "onboarding")
+                DispatchQueue.main.async {
+                    NSApp.activate(ignoringOtherApps: true)
+                }
+            }
             appState.startPolling()
         }
         .onDisappear {
@@ -287,6 +298,27 @@ struct MenuBarView: View {
 
     private var separator: some View {
         Rectangle().fill(.quaternary).frame(height: 0.5)
+    }
+
+    // MARK: - Startup Issue Banner
+
+    private func startupIssueBanner(_ issue: AppState.StartupIssue) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 11))
+            switch issue {
+            case .serverUnreachable(let msg):
+                Text("Servidor no disponible")
+                    .font(.system(size: 11, weight: .medium))
+                Spacer()
+                Button("Reintentar") { appState.checkServerConnectivity() }
+                    .controlSize(.small)
+            }
+        }
+        .foregroundStyle(.white)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(.orange.gradient, in: Rectangle())
     }
 
     // MARK: - Helpers

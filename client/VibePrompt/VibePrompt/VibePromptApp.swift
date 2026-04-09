@@ -15,6 +15,13 @@ struct VibePromptApp: App {
         Settings {
             PreferencesView(appState: appState)
         }
+
+        Window("Configuración Inicial", id: "onboarding") {
+            OnboardingView(appState: appState)
+        }
+        .windowStyle(.hiddenTitleBar)
+        .windowResizability(.contentSize)
+        .defaultPosition(.center)
     }
 
     private var menuBarIcon: String {

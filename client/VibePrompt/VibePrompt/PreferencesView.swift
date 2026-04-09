@@ -13,6 +13,11 @@ struct PreferencesView: View {
     @State private var connectionStatuses: [UUID: ConnectionTestStatus] = [:]
     @State private var inputDevices: [AudioInputDevice] = AudioRecorder.availableInputDevices()
 
+    private var activeServerIsLocal: Bool {
+        let url = appState.config.activeServer.url.lowercased()
+        return url.contains("127.0.0.1") || url.contains("localhost") || url.contains("192.168.") || url.contains("10.0.")
+    }
+
     private var config: AppConfig { appState.config }
 
     var body: some View {
@@ -165,12 +170,12 @@ struct PreferencesView: View {
                     ))
                     .font(.system(.body, design: .monospaced))
 
-                    SecureField("API Key", text: Binding(
+                    SecureField(activeServerIsLocal ? "API Key (no requerida en local)" : "API Key", text: Binding(
                         get: { config.activeServer.apiKey },
                         set: { config.updateServer(id: config.selectedServerID, apiKey: $0) }
                     ))
 
-                    SecureField("Admin Token", text: Binding(
+                    SecureField(activeServerIsLocal ? "Admin Token (no requerido en local)" : "Admin Token", text: Binding(
                         get: { config.activeServer.adminToken },
                         set: { config.updateServer(id: config.selectedServerID, adminToken: $0) }
                     ))
@@ -179,6 +184,12 @@ struct PreferencesView: View {
                         get: { config.activeServer.hfToken },
                         set: { config.updateServer(id: config.selectedServerID, hfToken: $0) }
                     ))
+
+                    if activeServerIsLocal {
+                        Text("El servidor local no requiere API key ni admin token.")
+                            .font(.caption)
+                            .foregroundStyle(.green)
+                    }
                 }
 
                 Section("Conexión") {

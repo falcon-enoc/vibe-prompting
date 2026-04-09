@@ -44,11 +44,45 @@ final class AppState {
     private let recorder = AudioRecorder()
     let transcriptionService = TranscriptionService()
     private let hotkeyManager = HotkeyManager()
+    var startupIssue: StartupIssue?
+    private var setupCompleted = false
+
+    enum StartupIssue: Equatable {
+        case serverUnreachable(String)
+    }
+
+    var needsOnboarding: Bool { !config.hasCompletedOnboarding }
 
     init() {
+        if config.hasCompletedOnboarding {
+            performFullSetup()
+        }
+    }
+
+    /// Called after onboarding completes, or on init if already onboarded.
+    func completeSetup() {
+        guard !setupCompleted else { return }
+        performFullSetup()
+    }
+
+    private func performFullSetup() {
+        setupCompleted = true
         Task { await requestPermissionsIfNeeded() }
         recorder.warmup()
         setupHotkey()
+        checkServerConnectivity()
+    }
+
+    func checkServerConnectivity() {
+        let server = config.activeServer
+        Task { @MainActor in
+            do {
+                _ = try await transcriptionService.fetchHealth(server: server)
+                startupIssue = nil
+            } catch {
+                startupIssue = .serverUnreachable(error.localizedDescription)
+            }
+        }
     }
 
     private func requestPermissionsIfNeeded() async {

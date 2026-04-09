@@ -57,10 +57,15 @@ client-dmg: client-archive ## Crea DMG del cliente
 		create-dmg \
 			--volname "VibePrompt" \
 			--window-pos 200 120 \
-			--window-size 600 400 \
-			--icon-size 100 \
-			--icon "VibePrompt.app" 150 190 \
-			--app-drop-link 450 190 \
+			--window-size 660 400 \
+			--icon-size 128 \
+			--text-size 14 \
+			--icon "VibePrompt.app" 180 200 \
+			--hide-extension "VibePrompt.app" \
+			--app-drop-link 480 200 \
+			--no-internet-enable \
+			$$(test -f client/dmg-resources/dmg-background.png && echo "--background client/dmg-resources/dmg-background.png") \
+			$$(test -f client/dmg-resources/VolumeIcon.icns && echo "--volicon client/dmg-resources/VolumeIcon.icns") \
 			"build/$(DMG_NAME)" \
 			"build/dmg/" || \
 		hdiutil create -volname "VibePrompt" -srcfolder build/dmg -ov -format UDZO "build/$(DMG_NAME)"
