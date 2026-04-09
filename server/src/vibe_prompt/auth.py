@@ -110,11 +110,22 @@ def get_settings(request: Request) -> Settings:
     return request.app.state.settings
 
 
+def _is_localhost(request: Request) -> bool:
+    """Check if the request originates from localhost."""
+    client = request.client
+    if client is None:
+        return False
+    return client.host in ("127.0.0.1", "::1", "localhost")
+
+
 async def require_api_key(
     x_api_key: Annotated[str | None, Header(alias="X-API-Key")] = None,
     request: Request = None,
 ) -> int:
-    if x_api_key is None:
+    # Allow localhost requests without API key (or with empty key)
+    if (x_api_key is None or x_api_key.strip() == "") and _is_localhost(request):
+        return 0
+    if x_api_key is None or x_api_key.strip() == "":
         raise HTTPException(status_code=401, detail="Missing X-API-Key header")
 
     key_hash = _hash_key(x_api_key)
@@ -149,11 +160,12 @@ admin_router = APIRouter(prefix="/admin", tags=["admin"])
 
 @admin_router.post("/keys")
 async def create_key(
+    request: Request,
     label: str = "",
     x_admin_token: Annotated[str | None, Header(alias="X-Admin-Token")] = None,
     settings: Settings = Depends(get_settings),
 ) -> dict:
-    if x_admin_token != settings.ADMIN_TOKEN:
+    if not _is_localhost(request) and x_admin_token != settings.ADMIN_TOKEN:
         raise HTTPException(status_code=401, detail="Invalid admin token")
     key = await create_api_key(settings.API_KEY_DB, label=label)
     return {"key": key, "label": label}
@@ -161,11 +173,12 @@ async def create_key(
 
 @admin_router.get("/usage")
 async def usage_stats(
+    request: Request,
     x_admin_token: Annotated[str | None, Header(alias="X-Admin-Token")] = None,
     settings: Settings = Depends(get_settings),
     days: int = Query(default=7, ge=1),
 ) -> dict:
-    if x_admin_token != settings.ADMIN_TOKEN:
+    if not _is_localhost(request) and x_admin_token != settings.ADMIN_TOKEN:
         raise HTTPException(status_code=401, detail="Invalid admin token")
 
     since = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()

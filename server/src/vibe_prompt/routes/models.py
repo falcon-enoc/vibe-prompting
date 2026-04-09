@@ -35,8 +35,12 @@ async def list_models(
 
 def _require_admin_token(
     request: Request,
-    x_admin_token: str = Header(...),
-) -> str:
+    x_admin_token: str | None = Header(default=None),
+) -> str | None:
+    # Allow localhost without admin token
+    client = request.client
+    if client and client.host in ("127.0.0.1", "::1", "localhost"):
+        return x_admin_token
     if x_admin_token != request.app.state.settings.ADMIN_TOKEN:
         raise HTTPException(status_code=403, detail="Invalid admin token")
     return x_admin_token
