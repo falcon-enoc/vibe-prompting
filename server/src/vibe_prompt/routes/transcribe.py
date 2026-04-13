@@ -125,10 +125,17 @@ async def transcribe(
     if len(audio_f32) == 0:
         raise HTTPException(status_code=422, detail="Audio vacío después de decodificar")
 
+    backend = request.app.state.stt_backend
+    if backend is None:
+        raise HTTPException(
+            status_code=503,
+            detail="No local model available. Download a model via /models or configure a remote server.",
+        )
+
     request_id = getattr(request.state, "request_id", "unknown")
 
     try:
-        result = await request.app.state.stt_backend.transcribe(audio_f32, language)
+        result = await backend.transcribe(audio_f32, language)
         asyncio.create_task(log_request(
             settings.API_KEY_DB,
             request_id=request_id,

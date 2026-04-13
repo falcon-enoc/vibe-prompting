@@ -12,7 +12,7 @@ class TranscribeResponse(BaseModel):
 class HealthResponse(BaseModel):
     status: str
     model_loaded: bool
-    model: str
+    model: str | None = None
     idle_seconds: int = 0
     idle_unload_minutes: int = 0
 
