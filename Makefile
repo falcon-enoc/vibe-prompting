@@ -1,6 +1,6 @@
 VENV_PYTHON := $(shell [ -f .venv/bin/python3 ] && echo $(CURDIR)/.venv/bin/python3 || echo python3)
 
-.PHONY: help server-install server-dev server-test server-lint create-api-key server-start server-stop server-restart server-rebuild server-status server-logs client-open client-build client-archive client-dmg client-clean dev test lint deploy-server deploy-install tunnel-setup tunnel-up tunnel-down tunnel-logs
+.PHONY: help server-install server-dev server-test server-lint create-api-key server-start server-stop server-restart server-rebuild server-status server-logs server-download-model client-open client-build client-archive client-dmg client-clean dev test lint deploy-server deploy-install tunnel-setup tunnel-up tunnel-down tunnel-logs
 
 help: ## Muestra los targets disponibles
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
@@ -117,6 +117,20 @@ server-status: ## Muestra estado del servicio y health check
 
 server-logs: ## Sigue los logs del servidor en tiempo real
 	tail -f $(LOG_DIR)/stderr.log
+
+server-download-model: ## Descarga el modelo configurado en .env al almacenamiento local
+	cd server && $(CURDIR)/.venv/bin/python -c "\
+import asyncio; \
+from vibe_prompt.model_manager import ModelManager; \
+from vibe_prompt.config import Settings; \
+from pathlib import Path; \
+async def main(): \
+    s = Settings(); \
+    mm = ModelManager(Path(s.MODEL_STORAGE_PATH).expanduser()); \
+    print(f'Descargando {s.MODEL_ID} (~2.3 GB)...'); \
+    path = await mm.download(s.MODEL_ID, hf_token=s.HF_TOKEN); \
+    print(f'Modelo listo en: {path}'); \
+asyncio.run(main())" PYTHONPATH=src
 
 # --- Deploy ---
 
