@@ -125,18 +125,7 @@ server-clear-hf-cache: ## Elimina el cache de HuggingFace (~/.cache/huggingface)
 	@echo "Cache eliminado."
 
 server-download-model: ## Descarga el modelo configurado en .env al almacenamiento local
-	cd server && PYTHONPATH=src $(CURDIR)/.venv/bin/python -c "\
-import asyncio; \
-from vibe_prompt.model_manager import ModelManager; \
-from vibe_prompt.config import Settings; \
-from pathlib import Path; \
-async def main(): \
-    s = Settings(); \
-    mm = ModelManager(Path(s.MODEL_STORAGE_PATH).expanduser()); \
-    print(f'Descargando {s.MODEL_ID} (~2.3 GB)...'); \
-    path = await mm.download(s.MODEL_ID, hf_token=s.HF_TOKEN); \
-    print(f'Modelo listo en: {path}'); \
-asyncio.run(main())"
+	cd server && PYTHONPATH=src $(CURDIR)/.venv/bin/python scripts/download_model.py
 
 # --- Deploy ---
 
