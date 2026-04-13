@@ -249,8 +249,7 @@ final class AppState {
             do {
                 let response = try await transcriptionService.transcribe(
                     audioData: audioData,
-                    server: server,
-                    language: "es"
+                    server: server
                 )
                 let processed = TextPostProcessor.process(response.text, mode: config.dictationMode)
                 #if DEBUG

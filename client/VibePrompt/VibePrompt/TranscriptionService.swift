@@ -38,7 +38,7 @@ struct ModelsResponse: Codable {
 struct HealthResponse: Codable {
     let status: String
     let modelLoaded: Bool
-    let model: String
+    let model: String?
     let idleSeconds: Int
     let idleUnloadMinutes: Int
 
