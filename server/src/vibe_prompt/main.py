@@ -38,21 +38,11 @@ async def lifespan(app: FastAPI):
         logger.info(f"Local model found: {settings.MODEL_ID} ({backend_type})")
         app.state.stt_backend = create_backend(backend_type, local_path)
     else:
-        # Fallback: model may exist in HuggingFace cache (~/.cache/huggingface)
-        # from a previous download via snapshot_download without local_dir
-        from huggingface_hub import try_to_load_from_cache
-        hf_cached = try_to_load_from_cache(settings.MODEL_ID, filename="config.json")
-        if hf_cached:
-            logger.info(
-                f"Model found in HuggingFace cache: {settings.MODEL_ID} ({backend_type})"
-            )
-            app.state.stt_backend = create_backend(backend_type, settings.MODEL_ID)
-        else:
-            logger.info(
-                f"No local model found for '{settings.MODEL_ID}'. "
-                "Server running without a model — use the /models endpoint to download one."
-            )
-            app.state.stt_backend = None
+        logger.info(
+            f"No local model found for '{settings.MODEL_ID}'. "
+            "Server running without a model — use the /models endpoint to download one."
+        )
+        app.state.stt_backend = None
 
     await init_db(settings.API_KEY_DB)
     await ensure_dev_key(settings.API_KEY_DB)
