@@ -1,6 +1,6 @@
 VENV_PYTHON := $(shell [ -f .venv/bin/python3 ] && echo $(CURDIR)/.venv/bin/python3 || echo python3)
 
-.PHONY: help server-install server-dev server-test server-lint create-api-key client-open client-build client-archive client-dmg client-clean dev test lint deploy-server deploy-install tunnel-setup tunnel-up tunnel-down tunnel-logs
+.PHONY: help server-install server-dev server-test server-lint create-api-key server-start server-stop server-restart server-rebuild server-status server-logs client-open client-build client-archive client-dmg client-clean dev test lint deploy-server deploy-install tunnel-setup tunnel-up tunnel-down tunnel-logs
 
 help: ## Muestra los targets disponibles
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
@@ -84,6 +84,39 @@ dev: server-dev ## Alias para server-dev
 test: server-test ## Alias para server-test
 
 lint: server-lint ## Alias para server-lint
+
+# --- Gestión del servicio (ejecutar en el Mac Mini) ---
+
+LAUNCHD_ID  := com.vibeprompt.server
+LAUNCHD_GUI := gui/$(shell id -u)/$(LAUNCHD_ID)
+LOG_DIR     := $(HOME)/Library/Logs/vibe-prompt
+
+server-start: ## Inicia el servicio launchd del servidor
+	launchctl bootstrap gui/$(shell id -u) $(HOME)/Library/LaunchAgents/$(LAUNCHD_ID).plist
+
+server-stop: ## Detiene el servicio launchd del servidor
+	launchctl bootout $(LAUNCHD_GUI) 2>/dev/null || true
+	@echo "Servidor detenido."
+
+server-restart: ## Reinicia el servicio launchd del servidor
+	launchctl kickstart -k $(LAUNCHD_GUI)
+	@echo "Servidor reiniciado."
+
+server-rebuild: ## Pull + reinstala dependencias + reinicia el servidor
+	git -C $(CURDIR) pull --ff-only
+	cd server && $(CURDIR)/.venv/bin/pip install -e . --quiet
+	launchctl kickstart -k $(LAUNCHD_GUI)
+	@echo "Rebuild completado. Esperando arranque..."
+	@sleep 3
+	@curl -sf http://localhost:8420/health | python3 -m json.tool || echo "Health check falló — revisa los logs."
+
+server-status: ## Muestra estado del servicio y health check
+	@launchctl print $(LAUNCHD_GUI) 2>/dev/null | grep -E "state|pid" || echo "Servicio no registrado."
+	@echo ""
+	@curl -sf http://localhost:8420/health | python3 -m json.tool || echo "Servidor no responde."
+
+server-logs: ## Sigue los logs del servidor en tiempo real
+	tail -f $(LOG_DIR)/stderr.log
 
 # --- Deploy ---
 
