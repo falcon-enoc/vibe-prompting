@@ -70,7 +70,7 @@ struct PreferencesView: View {
                         Text(lang.label).tag(lang)
                     }
                 }
-                Text("«Automático» detecta el idioma. Fijar un idioma evita que el modelo traduzca fragmentos (solo con Whisper; Parakeet no soporta forzar idioma).")
+                Text("«Automático» = multilenguaje (autodetecta). Bloquear un idioma evita que el modelo traduzca fragmentos — funciona con Whisper; Parakeet no soporta forzar idioma.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

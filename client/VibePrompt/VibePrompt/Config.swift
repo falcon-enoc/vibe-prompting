@@ -39,7 +39,7 @@ enum TranscriptionLanguage: String, CaseIterable {
 
     var label: String {
         switch self {
-        case .auto: "Automático"
+        case .auto: "Automático (multilenguaje)"
         case .es: "Español"
         case .en: "English"
         case .pt: "Português"
