@@ -38,9 +38,12 @@ final class AppState {
     var modelState: ModelState = .unknown
     var idleUnloadMinutes: Int = 10
     var switchingModel: Bool = false
+    /// RAM (MB) que el modelo consume mientras está cargado en memoria.
+    var modelMemoryMb: Double?
 
     let config = AppConfig()
     let modelManager = ModelManager()
+    let localServer = LocalServerManager()
     private let recorder = AudioRecorder()
     let transcriptionService = TranscriptionService()
     private let hotkeyManager = HotkeyManager()
@@ -54,6 +57,14 @@ final class AppState {
     var needsOnboarding: Bool { !config.hasCompletedOnboarding }
 
     init() {
+        // Al salir de la app, detener el servidor local que hayamos lanzado
+        // para no dejar procesos huérfanos.
+        NotificationCenter.default.addObserver(
+            forName: NSApplication.willTerminateNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            self?.localServer.stop()
+        }
+
         if config.hasCompletedOnboarding {
             performFullSetup()
         }
@@ -70,6 +81,57 @@ final class AppState {
         Task { await requestPermissionsIfNeeded() }
         recorder.warmup()
         setupHotkey()
+        syncLocalServer()
+        checkServerConnectivity()
+    }
+
+    // MARK: - Servidor local
+
+    /// Arranca o detiene el servidor local según el servidor activo.
+    /// Se llama al iniciar la app y cada vez que cambia el servidor seleccionado.
+    func syncLocalServer() {
+        if config.activeServerIsLocal {
+            startLocalServer()
+        } else {
+            localServer.stop()
+        }
+    }
+
+    func startLocalServer() {
+        guard let root = config.resolvedProjectRoot else {
+            localServer.setMissingProjectRoot()
+            return
+        }
+        let modelId = config.localServerModelId
+        let backend = supportedModels.first(where: { $0.id == modelId })?.backend ?? "parakeet"
+        localServer.start(
+            projectRoot: root,
+            port: config.activeServerPort,
+            modelId: modelId,
+            backend: backend
+        )
+        // Reintentar la conectividad cuando el servidor esté listo.
+        Task { @MainActor in
+            for _ in 0..<60 {
+                if localServer.status.isUp {
+                    checkServerConnectivity()
+                    refreshServerInfo()
+                    return
+                }
+                if case .failed = localServer.status { return }
+                try? await Task.sleep(for: .milliseconds(500))
+            }
+        }
+    }
+
+    func stopLocalServer() {
+        localServer.stop()
+    }
+
+    /// Llamar cuando el usuario cambia el servidor activo.
+    func onActiveServerChanged() {
+        syncLocalServer()
+        refreshServerInfo()
         checkServerConnectivity()
     }
 
@@ -154,11 +216,14 @@ final class AppState {
                 idleUnloadMinutes = health.idleUnloadMinutes
                 if health.modelLoaded {
                     modelState = .loaded(idleSeconds: health.idleSeconds)
+                    modelMemoryMb = health.memoryMb
                 } else {
                     modelState = .unloaded
+                    modelMemoryMb = nil
                 }
             } catch {
                 modelState = .error("Sin conexión")
+                modelMemoryMb = nil
             }
         }
     }
@@ -226,31 +291,37 @@ final class AppState {
             log.warning("stopAndTranscribe ignorado — estado actual: \(self.status.label)")
             return
         }
-        let audioData: Data
-        do {
-            audioData = try recorder.stopRecording()
-        } catch {
-            log.error("Error al detener grabación: \(error.localizedDescription)")
-            status = .error(error.localizedDescription)
-            Task { @MainActor in
-                try? await Task.sleep(for: .seconds(3))
-                if case .error = status { status = .idle }
-            }
-            return
-        }
-        #if DEBUG
-        log.info("Grabación detenida — \(audioData.count) bytes de audio")
-        #endif
-        status = .transcribing
 
         let server = config.activeServer
+        let tailMs = config.recordingTailMs
+        let language = config.transcriptionLanguage.code
 
         Task { @MainActor in
+            // Margen: seguir grabando un instante para no cortar el final de la frase.
+            if tailMs > 0 {
+                try? await Task.sleep(for: .milliseconds(tailMs))
+            }
+
+            let audioData: Data
+            do {
+                audioData = try recorder.stopRecording()
+            } catch {
+                log.error("Error al detener grabación: \(error.localizedDescription)")
+                status = .error(error.localizedDescription)
+                try? await Task.sleep(for: .seconds(3))
+                if case .error = status { status = .idle }
+                return
+            }
+            #if DEBUG
+            log.info("Grabación detenida — \(audioData.count) bytes de audio")
+            #endif
+            status = .transcribing
+
             do {
                 let response = try await transcriptionService.transcribe(
                     audioData: audioData,
                     server: server,
-                    language: "es"
+                    language: language
                 )
                 let processed = TextPostProcessor.process(response.text, mode: config.dictationMode)
                 #if DEBUG

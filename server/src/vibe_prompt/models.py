@@ -15,6 +15,7 @@ class HealthResponse(BaseModel):
     model: str | None = None
     idle_seconds: int = 0
     idle_unload_minutes: int = 0
+    memory_mb: float | None = None
 
 
 class ModelInfo(BaseModel):

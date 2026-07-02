@@ -28,6 +28,31 @@ enum DictationMode: String, CaseIterable {
     }
 }
 
+enum TranscriptionLanguage: String, CaseIterable {
+    case auto = "auto"
+    case es = "es"
+    case en = "en"
+    case pt = "pt"
+    case fr = "fr"
+    case de = "de"
+    case it = "it"
+
+    var label: String {
+        switch self {
+        case .auto: "Automático (multilenguaje)"
+        case .es: "Español"
+        case .en: "English"
+        case .pt: "Português"
+        case .fr: "Français"
+        case .de: "Deutsch"
+        case .it: "Italiano"
+        }
+    }
+
+    /// Código ISO 639-1 a enviar al servidor, o `nil` si es automático.
+    var code: String? { self == .auto ? nil : rawValue }
+}
+
 struct ServerConfig: Codable, Identifiable, Hashable {
     let id: UUID
     var name: String
@@ -109,6 +134,15 @@ final class AppConfig {
         didSet { UserDefaults.standard.set(dictationModeRaw, forKey: "dictationModeRaw") }
     }
 
+    var transcriptionLanguageRaw: String = UserDefaults.standard.string(forKey: "transcriptionLanguageRaw") ?? TranscriptionLanguage.auto.rawValue {
+        didSet { UserDefaults.standard.set(transcriptionLanguageRaw, forKey: "transcriptionLanguageRaw") }
+    }
+
+    /// Margen (ms) que se sigue grabando tras pedir el corte, para no perder el final.
+    var recordingTailMs: Int = UserDefaults.standard.object(forKey: "recordingTailMs") as? Int ?? 250 {
+        didSet { UserDefaults.standard.set(recordingTailMs, forKey: "recordingTailMs") }
+    }
+
     var soundFeedback: Bool = UserDefaults.standard.object(forKey: "soundFeedback") as? Bool ?? true {
         didSet { UserDefaults.standard.set(soundFeedback, forKey: "soundFeedback") }
     }
@@ -136,6 +170,17 @@ final class AppConfig {
         didSet { UserDefaults.standard.set(hasCompletedOnboarding, forKey: "hasCompletedOnboarding") }
     }
 
+    /// Ruta del proyecto vibe-prompt desde donde se lanza el servidor local
+    /// (debe contener `.venv/` y `server/`). Vacío = autodetectar.
+    var localServerProjectPath: String = UserDefaults.standard.string(forKey: "localServerProjectPath") ?? "" {
+        didSet { UserDefaults.standard.set(localServerProjectPath, forKey: "localServerProjectPath") }
+    }
+
+    /// Modelo con el que arranca el servidor local.
+    var localServerModelId: String = UserDefaults.standard.string(forKey: "localServerModelId") ?? "mlx-community/parakeet-tdt-0.6b-v3" {
+        didSet { UserDefaults.standard.set(localServerModelId, forKey: "localServerModelId") }
+    }
+
     // MARK: - Computed
 
     var hotkeyMode: HotkeyMode {
@@ -148,8 +193,56 @@ final class AppConfig {
         set { dictationModeRaw = newValue.rawValue }
     }
 
+    var transcriptionLanguage: TranscriptionLanguage {
+        get { TranscriptionLanguage(rawValue: transcriptionLanguageRaw) ?? .auto }
+        set { transcriptionLanguageRaw = newValue.rawValue }
+    }
+
     var activeServer: ServerConfig {
         servers.first(where: { $0.id == selectedServerID }) ?? servers.first ?? ServerConfig()
+    }
+
+    // MARK: - Servidor local
+
+    /// ¿La URL apunta a un servidor en esta misma máquina?
+    static func isLocalURL(_ url: String) -> Bool {
+        let u = url.lowercased()
+        return u.contains("127.0.0.1") || u.contains("localhost") || u.contains("0.0.0.0")
+    }
+
+    var activeServerIsLocal: Bool { Self.isLocalURL(activeServer.url) }
+
+    /// Puerto del servidor activo (por defecto 8420).
+    var activeServerPort: Int {
+        URLComponents(string: activeServer.url)?.port ?? 8420
+    }
+
+    /// Ruta del proyecto resuelta: la configurada si es válida, si no autodetectada.
+    var resolvedProjectRoot: String? {
+        if !localServerProjectPath.isEmpty, Self.isValidProjectRoot(localServerProjectPath) {
+            return localServerProjectPath
+        }
+        return Self.autodetectProjectRoot()
+    }
+
+    /// Una ruta es válida si contiene el venv y el paquete del servidor.
+    static func isValidProjectRoot(_ path: String) -> Bool {
+        let root = URL(fileURLWithPath: path, isDirectory: true)
+        let fm = FileManager.default
+        return fm.fileExists(atPath: root.appendingPathComponent(".venv/bin/python").path)
+            && fm.fileExists(atPath: root.appendingPathComponent("server/src/vibe_prompt/main.py").path)
+    }
+
+    /// Busca el proyecto en ubicaciones habituales.
+    static func autodetectProjectRoot() -> String? {
+        let home = NSHomeDirectory()
+        let candidates = [
+            "\(home)/proyectos/vibe-prompt",
+            "\(home)/Developer/vibe-prompt",
+            "\(home)/vibe-prompt",
+            "\(home)/Documents/vibe-prompt",
+        ]
+        return candidates.first(where: isValidProjectRoot)
     }
 
     // MARK: - Mutations

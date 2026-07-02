@@ -1,6 +1,6 @@
 VENV_PYTHON := $(shell [ -f .venv/bin/python3 ] && echo $(CURDIR)/.venv/bin/python3 || echo python3)
 
-.PHONY: help server-install server-dev server-test server-lint create-api-key server-start server-stop server-restart server-rebuild server-status server-logs client-open client-build client-archive client-dmg client-clean dev test lint deploy-server deploy-install tunnel-setup tunnel-up tunnel-down tunnel-logs
+.PHONY: help server-install server-dev server-test server-lint create-api-key server-start server-stop server-restart server-rebuild server-status server-logs server-download-model server-clear-hf-cache client-open client-build client-archive client-dmg client-clean dev test lint deploy-server deploy-install tunnel-setup tunnel-up tunnel-down tunnel-logs
 
 help: ## Muestra los targets disponibles
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
@@ -117,6 +117,15 @@ server-status: ## Muestra estado del servicio y health check
 
 server-logs: ## Sigue los logs del servidor en tiempo real
 	tail -f $(LOG_DIR)/stderr.log
+
+server-clear-hf-cache: ## Elimina el cache de HuggingFace (~/.cache/huggingface)
+	@echo "Eliminando cache de HuggingFace..."
+	@du -sh ~/.cache/huggingface 2>/dev/null || echo "(cache no existe)"
+	rm -rf ~/.cache/huggingface
+	@echo "Cache eliminado."
+
+server-download-model: ## Descarga el modelo configurado en .env al almacenamiento local
+	cd server && PYTHONPATH=src $(CURDIR)/.venv/bin/python scripts/download_model.py
 
 # --- Deploy ---
 

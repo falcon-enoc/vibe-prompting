@@ -52,10 +52,14 @@ final class HotkeyManager {
         let mask = CGEventMask(1 << CGEventType.flagsChanged.rawValue)
         let selfPtr = Unmanaged.passUnretained(self).toOpaque()
 
+        // .listenOnly: solo observamos flagsChanged (nunca consumimos/modificamos
+        // el evento), así la app NO queda en la ruta de entrega síncrona del
+        // teclado. Con .defaultTap, si la app se swapea por presión de RAM, cada
+        // tecla modificadora (Shift/⌘) se retrasa y el teclado se "congela".
         eventTap = CGEvent.tapCreate(
             tap: .cghidEventTap,
             place: .headInsertEventTap,
-            options: .defaultTap,
+            options: .listenOnly,
             eventsOfInterest: mask,
             callback: { _, type, event, userInfo -> Unmanaged<CGEvent>? in
                 // Re-enable tap if macOS disabled it

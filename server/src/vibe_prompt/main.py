@@ -39,8 +39,8 @@ async def lifespan(app: FastAPI):
         app.state.stt_backend = create_backend(backend_type, local_path)
     else:
         logger.info(
-            f"No local model downloaded for '{settings.MODEL_ID}'. "
-            "Server running without a local model — use the /models endpoint to download one."
+            f"No local model found for '{settings.MODEL_ID}'. "
+            "Server running without a model — use the /models endpoint to download one."
         )
         app.state.stt_backend = None
 

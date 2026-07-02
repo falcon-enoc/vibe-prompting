@@ -25,6 +25,8 @@ targets:
         LSUIElement: true
         NSMicrophoneUsageDescription: "Vibe Prompt necesita acceso al micrófono para grabar audio y transcribirlo a texto."
         NSPrincipalClass: NSApplication
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
     entitlements:
       path: VibePrompt/VibePrompt.entitlements
       properties:
