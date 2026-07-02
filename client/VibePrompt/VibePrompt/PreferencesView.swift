@@ -61,6 +61,18 @@ struct PreferencesView: View {
                         Text(mode.label).tag(mode)
                     }
                 }
+
+                Picker("Idioma", selection: Binding(
+                    get: { config.transcriptionLanguage },
+                    set: { config.transcriptionLanguage = $0 }
+                )) {
+                    ForEach(TranscriptionLanguage.allCases, id: \.rawValue) { lang in
+                        Text(lang.label).tag(lang)
+                    }
+                }
+                Text("«Automático» detecta el idioma. Fijar un idioma evita que el modelo traduzca fragmentos (solo con Whisper; Parakeet no soporta forzar idioma).")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
 
             Section("Comportamiento") {
@@ -73,6 +85,19 @@ struct PreferencesView: View {
                     get: { config.launchAtLogin },
                     set: { config.launchAtLogin = $0 }
                 ))
+
+                Picker("Margen al cortar", selection: Binding(
+                    get: { config.recordingTailMs },
+                    set: { config.recordingTailMs = $0 }
+                )) {
+                    Text("Ninguno").tag(0)
+                    Text("0,15 s").tag(150)
+                    Text("0,25 s").tag(250)
+                    Text("0,5 s").tag(500)
+                }
+                Text("Sigue grabando un instante tras soltar/cortar para no perder el final de la frase.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
         }
         .padding()
@@ -167,12 +192,12 @@ struct PreferencesView: View {
                     ))
                     .font(.system(.body, design: .monospaced))
 
-                    SecureField(activeServerIsLocal ? "API Key (no requerida en local)" : "API Key", text: Binding(
+                    SecureField("API Key", text: Binding(
                         get: { config.activeServer.apiKey },
                         set: { config.updateServer(id: config.selectedServerID, apiKey: $0) }
                     ))
 
-                    SecureField(activeServerIsLocal ? "Admin Token (no requerido en local)" : "Admin Token", text: Binding(
+                    SecureField("Admin Token", text: Binding(
                         get: { config.activeServer.adminToken },
                         set: { config.updateServer(id: config.selectedServerID, adminToken: $0) }
                     ))

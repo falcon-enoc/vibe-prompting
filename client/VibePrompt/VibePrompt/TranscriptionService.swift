@@ -41,12 +41,14 @@ struct HealthResponse: Codable {
     let model: String?
     let idleSeconds: Int
     let idleUnloadMinutes: Int
+    let memoryMb: Double?
 
     enum CodingKeys: String, CodingKey {
         case status, model
         case modelLoaded = "model_loaded"
         case idleSeconds = "idle_seconds"
         case idleUnloadMinutes = "idle_unload_minutes"
+        case memoryMb = "memory_mb"
     }
 }
 

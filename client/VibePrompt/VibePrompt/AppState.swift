@@ -38,6 +38,8 @@ final class AppState {
     var modelState: ModelState = .unknown
     var idleUnloadMinutes: Int = 10
     var switchingModel: Bool = false
+    /// RAM (MB) que el modelo consume mientras está cargado en memoria.
+    var modelMemoryMb: Double?
 
     let config = AppConfig()
     let modelManager = ModelManager()
@@ -214,11 +216,14 @@ final class AppState {
                 idleUnloadMinutes = health.idleUnloadMinutes
                 if health.modelLoaded {
                     modelState = .loaded(idleSeconds: health.idleSeconds)
+                    modelMemoryMb = health.memoryMb
                 } else {
                     modelState = .unloaded
+                    modelMemoryMb = nil
                 }
             } catch {
                 modelState = .error("Sin conexión")
+                modelMemoryMb = nil
             }
         }
     }
@@ -286,30 +291,37 @@ final class AppState {
             log.warning("stopAndTranscribe ignorado — estado actual: \(self.status.label)")
             return
         }
-        let audioData: Data
-        do {
-            audioData = try recorder.stopRecording()
-        } catch {
-            log.error("Error al detener grabación: \(error.localizedDescription)")
-            status = .error(error.localizedDescription)
-            Task { @MainActor in
-                try? await Task.sleep(for: .seconds(3))
-                if case .error = status { status = .idle }
-            }
-            return
-        }
-        #if DEBUG
-        log.info("Grabación detenida — \(audioData.count) bytes de audio")
-        #endif
-        status = .transcribing
 
         let server = config.activeServer
+        let tailMs = config.recordingTailMs
+        let language = config.transcriptionLanguage.code
 
         Task { @MainActor in
+            // Margen: seguir grabando un instante para no cortar el final de la frase.
+            if tailMs > 0 {
+                try? await Task.sleep(for: .milliseconds(tailMs))
+            }
+
+            let audioData: Data
+            do {
+                audioData = try recorder.stopRecording()
+            } catch {
+                log.error("Error al detener grabación: \(error.localizedDescription)")
+                status = .error(error.localizedDescription)
+                try? await Task.sleep(for: .seconds(3))
+                if case .error = status { status = .idle }
+                return
+            }
+            #if DEBUG
+            log.info("Grabación detenida — \(audioData.count) bytes de audio")
+            #endif
+            status = .transcribing
+
             do {
                 let response = try await transcriptionService.transcribe(
                     audioData: audioData,
-                    server: server
+                    server: server,
+                    language: language
                 )
                 let processed = TextPostProcessor.process(response.text, mode: config.dictationMode)
                 #if DEBUG

@@ -28,6 +28,31 @@ enum DictationMode: String, CaseIterable {
     }
 }
 
+enum TranscriptionLanguage: String, CaseIterable {
+    case auto = "auto"
+    case es = "es"
+    case en = "en"
+    case pt = "pt"
+    case fr = "fr"
+    case de = "de"
+    case it = "it"
+
+    var label: String {
+        switch self {
+        case .auto: "Automático"
+        case .es: "Español"
+        case .en: "English"
+        case .pt: "Português"
+        case .fr: "Français"
+        case .de: "Deutsch"
+        case .it: "Italiano"
+        }
+    }
+
+    /// Código ISO 639-1 a enviar al servidor, o `nil` si es automático.
+    var code: String? { self == .auto ? nil : rawValue }
+}
+
 struct ServerConfig: Codable, Identifiable, Hashable {
     let id: UUID
     var name: String
@@ -109,6 +134,15 @@ final class AppConfig {
         didSet { UserDefaults.standard.set(dictationModeRaw, forKey: "dictationModeRaw") }
     }
 
+    var transcriptionLanguageRaw: String = UserDefaults.standard.string(forKey: "transcriptionLanguageRaw") ?? TranscriptionLanguage.auto.rawValue {
+        didSet { UserDefaults.standard.set(transcriptionLanguageRaw, forKey: "transcriptionLanguageRaw") }
+    }
+
+    /// Margen (ms) que se sigue grabando tras pedir el corte, para no perder el final.
+    var recordingTailMs: Int = UserDefaults.standard.object(forKey: "recordingTailMs") as? Int ?? 250 {
+        didSet { UserDefaults.standard.set(recordingTailMs, forKey: "recordingTailMs") }
+    }
+
     var soundFeedback: Bool = UserDefaults.standard.object(forKey: "soundFeedback") as? Bool ?? true {
         didSet { UserDefaults.standard.set(soundFeedback, forKey: "soundFeedback") }
     }
@@ -157,6 +191,11 @@ final class AppConfig {
     var dictationMode: DictationMode {
         get { DictationMode(rawValue: dictationModeRaw) ?? .raw }
         set { dictationModeRaw = newValue.rawValue }
+    }
+
+    var transcriptionLanguage: TranscriptionLanguage {
+        get { TranscriptionLanguage(rawValue: transcriptionLanguageRaw) ?? .auto }
+        set { transcriptionLanguageRaw = newValue.rawValue }
     }
 
     var activeServer: ServerConfig {

@@ -212,7 +212,7 @@ struct MenuBarView: View {
                 Image(systemName: "bolt.circle.fill")
                     .font(.system(size: 10))
                     .foregroundStyle(.green)
-                Text("En memoria · \(idle)s")
+                Text(loadedBadgeText(idle: idle))
                     .font(.system(size: 10))
                     .foregroundStyle(.green)
             case .error:
@@ -224,6 +224,16 @@ struct MenuBarView: View {
                     .foregroundStyle(.red)
             }
         }
+    }
+
+    private func loadedBadgeText(idle: Int) -> String {
+        var text = "En memoria · \(idle)s"
+        if let mb = appState.modelMemoryMb, mb > 0 {
+            text += mb >= 1024
+                ? String(format: " · %.1f GB", mb / 1024)
+                : String(format: " · %.0f MB", mb)
+        }
+        return text
     }
 
     // MARK: - Status Header
