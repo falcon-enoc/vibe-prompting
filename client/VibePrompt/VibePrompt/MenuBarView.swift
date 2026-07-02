@@ -39,6 +39,10 @@ struct MenuBarView: View {
                     }
                     .padding(.horizontal, 10)
                     .padding(.vertical, 7)
+
+                    if config.activeServerIsLocal {
+                        localServerRow
+                    }
                 }
 
                 // Toggle rápido: auto-pegar
@@ -139,6 +143,42 @@ struct MenuBarView: View {
         .onDisappear {
             appState.stopPolling()
         }
+    }
+
+    // MARK: - Local Server Row
+
+    @ViewBuilder
+    private var localServerRow: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "bolt.horizontal.circle")
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+                .frame(width: 16)
+
+            switch appState.localServer.status {
+            case .running:
+                Text("Servidor local activo").font(.system(size: 11)).foregroundStyle(.green)
+                Spacer()
+                Button("Detener") { appState.stopLocalServer() }
+                    .buttonStyle(.plain).font(.system(size: 11)).foregroundStyle(.red)
+            case .starting:
+                Text("Iniciando servidor…").font(.system(size: 11)).foregroundStyle(.blue)
+                Spacer()
+                ProgressView().controlSize(.small)
+            case .failed(let msg):
+                Text(msg).font(.system(size: 10)).foregroundStyle(.red).lineLimit(1)
+                Spacer()
+                Button("Reintentar") { appState.startLocalServer() }
+                    .buttonStyle(.plain).font(.system(size: 11)).foregroundStyle(.blue)
+            case .stopped:
+                Text("Servidor local detenido").font(.system(size: 11)).foregroundStyle(.secondary)
+                Spacer()
+                Button("Iniciar") { appState.startLocalServer() }
+                    .buttonStyle(.plain).font(.system(size: 11)).foregroundStyle(.blue)
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 7)
     }
 
     // MARK: - Model Status Badge

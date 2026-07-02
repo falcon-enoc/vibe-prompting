@@ -20,14 +20,14 @@
 	<string>1</string>
 	<key>LSUIElement</key>
 	<true/>
-	<key>NSMicrophoneUsageDescription</key>
-	<string>Vibe Prompt necesita acceso al micrófono para grabar audio y transcribirlo a texto.</string>
-	<key>NSPrincipalClass</key>
-	<string>NSApplication</string>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsLocalNetworking</key>
 		<true/>
 	</dict>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Vibe Prompt necesita acceso al micrófono para grabar audio y transcribirlo a texto.</string>
+	<key>NSPrincipalClass</key>
+	<string>NSApplication</string>
 </dict>
 </plist>

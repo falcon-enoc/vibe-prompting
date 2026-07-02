@@ -13,10 +13,7 @@ struct PreferencesView: View {
     @State private var connectionStatuses: [UUID: ConnectionTestStatus] = [:]
     @State private var inputDevices: [AudioInputDevice] = AudioRecorder.availableInputDevices()
 
-    private var activeServerIsLocal: Bool {
-        let url = appState.config.activeServer.url.lowercased()
-        return url.contains("127.0.0.1") || url.contains("localhost") || url.contains("192.168.") || url.contains("10.0.")
-    }
+    private var activeServerIsLocal: Bool { appState.config.activeServerIsLocal }
 
     private var config: AppConfig { appState.config }
 
@@ -121,7 +118,7 @@ struct PreferencesView: View {
                     set: {
                         if let id = $0 {
                             config.selectedServerID = id
-                            appState.refreshServerInfo()
+                            appState.onActiveServerChanged()
                         }
                     }
                 )) {
@@ -203,8 +200,109 @@ struct PreferencesView: View {
                         connectionStatusView(for: config.selectedServerID)
                     }
                 }
+
+                if activeServerIsLocal {
+                    localServerSection
+                }
             }
             .padding()
+        }
+    }
+
+    // MARK: - Sección: Servidor local
+
+    private var downloadedModels: [ModelDownloadState] {
+        appState.modelManager.models.filter(\.downloaded)
+    }
+
+    @ViewBuilder
+    private var localServerSection: some View {
+        Section("Servidor local") {
+            HStack {
+                Text("Estado")
+                Spacer()
+                localServerStatusView
+            }
+
+            HStack {
+                switch appState.localServer.status {
+                case .running:
+                    Button("Detener servidor") { appState.stopLocalServer() }
+                case .starting:
+                    Button("Iniciando…") {}.disabled(true)
+                default:
+                    Button("Iniciar servidor") { appState.startLocalServer() }
+                }
+                Spacer()
+            }
+
+            Picker("Modelo", selection: Binding(
+                get: { config.localServerModelId },
+                set: { newValue in
+                    config.localServerModelId = newValue
+                    // Si el servidor ya está arriba, cambiar el modelo en caliente.
+                    if appState.localServer.status.isUp {
+                        appState.switchModel(to: newValue)
+                    }
+                }
+            )) {
+                ForEach(downloadedModels) { state in
+                    Text(state.model.name).tag(state.model.id)
+                }
+            }
+
+            HStack(spacing: 6) {
+                TextField("Ruta del proyecto", text: Binding(
+                    get: { config.localServerProjectPath },
+                    set: { config.localServerProjectPath = $0 }
+                ))
+                .font(.system(.caption, design: .monospaced))
+                Button("Elegir…") { chooseProjectFolder() }
+            }
+
+            if config.localServerProjectPath.isEmpty {
+                if let auto = AppConfig.autodetectProjectRoot() {
+                    Text("Autodetectado: \(auto)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text("No se encontró el proyecto automáticamente. Elige la carpeta que contiene .venv/ y server/.")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var localServerStatusView: some View {
+        switch appState.localServer.status {
+        case .stopped:
+            Label("Detenido", systemImage: "stop.circle")
+                .font(.system(size: 12)).foregroundStyle(.secondary)
+        case .starting:
+            HStack(spacing: 4) {
+                ProgressView().controlSize(.small)
+                Text("Iniciando…").font(.system(size: 12)).foregroundStyle(.blue)
+            }
+        case .running:
+            Label("Corriendo", systemImage: "checkmark.circle.fill")
+                .font(.system(size: 12)).foregroundStyle(.green)
+        case .failed(let msg):
+            Label(msg, systemImage: "xmark.circle.fill")
+                .font(.system(size: 11)).foregroundStyle(.red).lineLimit(2)
+        }
+    }
+
+    private func chooseProjectFolder() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.allowsMultipleSelection = false
+        panel.prompt = "Elegir"
+        panel.message = "Selecciona la carpeta del proyecto vibe-prompt (contiene .venv/ y server/)"
+        if panel.runModal() == .OK, let url = panel.url {
+            config.localServerProjectPath = url.path
         }
     }
 

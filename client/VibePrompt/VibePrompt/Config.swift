@@ -136,6 +136,17 @@ final class AppConfig {
         didSet { UserDefaults.standard.set(hasCompletedOnboarding, forKey: "hasCompletedOnboarding") }
     }
 
+    /// Ruta del proyecto vibe-prompt desde donde se lanza el servidor local
+    /// (debe contener `.venv/` y `server/`). Vacío = autodetectar.
+    var localServerProjectPath: String = UserDefaults.standard.string(forKey: "localServerProjectPath") ?? "" {
+        didSet { UserDefaults.standard.set(localServerProjectPath, forKey: "localServerProjectPath") }
+    }
+
+    /// Modelo con el que arranca el servidor local.
+    var localServerModelId: String = UserDefaults.standard.string(forKey: "localServerModelId") ?? "mlx-community/parakeet-tdt-0.6b-v3" {
+        didSet { UserDefaults.standard.set(localServerModelId, forKey: "localServerModelId") }
+    }
+
     // MARK: - Computed
 
     var hotkeyMode: HotkeyMode {
@@ -150,6 +161,49 @@ final class AppConfig {
 
     var activeServer: ServerConfig {
         servers.first(where: { $0.id == selectedServerID }) ?? servers.first ?? ServerConfig()
+    }
+
+    // MARK: - Servidor local
+
+    /// ¿La URL apunta a un servidor en esta misma máquina?
+    static func isLocalURL(_ url: String) -> Bool {
+        let u = url.lowercased()
+        return u.contains("127.0.0.1") || u.contains("localhost") || u.contains("0.0.0.0")
+    }
+
+    var activeServerIsLocal: Bool { Self.isLocalURL(activeServer.url) }
+
+    /// Puerto del servidor activo (por defecto 8420).
+    var activeServerPort: Int {
+        URLComponents(string: activeServer.url)?.port ?? 8420
+    }
+
+    /// Ruta del proyecto resuelta: la configurada si es válida, si no autodetectada.
+    var resolvedProjectRoot: String? {
+        if !localServerProjectPath.isEmpty, Self.isValidProjectRoot(localServerProjectPath) {
+            return localServerProjectPath
+        }
+        return Self.autodetectProjectRoot()
+    }
+
+    /// Una ruta es válida si contiene el venv y el paquete del servidor.
+    static func isValidProjectRoot(_ path: String) -> Bool {
+        let root = URL(fileURLWithPath: path, isDirectory: true)
+        let fm = FileManager.default
+        return fm.fileExists(atPath: root.appendingPathComponent(".venv/bin/python").path)
+            && fm.fileExists(atPath: root.appendingPathComponent("server/src/vibe_prompt/main.py").path)
+    }
+
+    /// Busca el proyecto en ubicaciones habituales.
+    static func autodetectProjectRoot() -> String? {
+        let home = NSHomeDirectory()
+        let candidates = [
+            "\(home)/proyectos/vibe-prompt",
+            "\(home)/Developer/vibe-prompt",
+            "\(home)/vibe-prompt",
+            "\(home)/Documents/vibe-prompt",
+        ]
+        return candidates.first(where: isValidProjectRoot)
     }
 
     // MARK: - Mutations
