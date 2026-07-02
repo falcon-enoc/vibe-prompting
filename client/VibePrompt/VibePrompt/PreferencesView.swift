@@ -34,7 +34,7 @@ struct PreferencesView: View {
             historyTab
                 .tabItem { Label("Historial", systemImage: "clock") }
         }
-        .frame(minWidth: 500, minHeight: 400)
+        .frame(minWidth: 640, idealWidth: 680, minHeight: 480, idealHeight: 520)
     }
 
     // MARK: - Tab 1: General
