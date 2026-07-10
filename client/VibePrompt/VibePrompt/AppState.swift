@@ -31,7 +31,11 @@ enum AppStatus: Equatable {
 
 @Observable
 final class AppState {
-    var status: AppStatus = .idle
+    var status: AppStatus = .idle {
+        didSet { overlay.statusChanged(status) }
+    }
+    /// Nivel del micrófono (0–1) mientras se graba, para la onda del overlay.
+    var audioLevel: Float = 0
     var lastTranscription: String = ""
     var serverModels: [ServerModelInfo] = []
     var serverCurrentModel: String = ""
@@ -44,9 +48,11 @@ final class AppState {
     let config = AppConfig()
     let modelManager = ModelManager()
     let localServer = LocalServerManager()
+    let serverInstaller = ServerInstaller()
     private let recorder = AudioRecorder()
     let transcriptionService = TranscriptionService()
     private let hotkeyManager = HotkeyManager()
+    @ObservationIgnored private lazy var overlay = RecordingOverlayController(appState: self)
     var startupIssue: StartupIssue?
     private var setupCompleted = false
 
@@ -63,6 +69,10 @@ final class AppState {
             forName: NSApplication.willTerminateNotification, object: nil, queue: .main
         ) { [weak self] _ in
             self?.localServer.stop()
+        }
+
+        recorder.onLevel = { [weak self] level in
+            self?.audioLevel = level
         }
 
         if config.hasCompletedOnboarding {
@@ -97,8 +107,27 @@ final class AppState {
         }
     }
 
+    /// Instala el entorno del servidor local desde la app y, al terminar, lo arranca.
+    func installLocalServer() {
+        serverInstaller.install()
+        Task { @MainActor in
+            for _ in 0..<3600 { // hasta ~30 min (deps pesadas)
+                switch serverInstaller.status {
+                case .installed:
+                    startLocalServer()
+                    return
+                case .failed:
+                    return
+                default:
+                    try? await Task.sleep(for: .milliseconds(500))
+                }
+            }
+        }
+    }
+
     func startLocalServer() {
         guard let root = config.resolvedProjectRoot else {
+            // No hay entorno: hay que instalarlo desde Preferencias.
             localServer.setMissingProjectRoot()
             return
         }
@@ -264,6 +293,7 @@ final class AppState {
             if config.soundFeedback {
                 Self.playSound("Tink")
             }
+            audioLevel = 0
             try recorder.startRecording(deviceUID: deviceUID)
             status = .recording
         } catch {

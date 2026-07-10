@@ -28,6 +28,8 @@ enum AudioRecorderError: LocalizedError {
 }
 
 final class AudioRecorder {
+    /// Nivel del micrófono (0–1) por buffer capturado. Se invoca en el main thread.
+    var onLevel: ((Float) -> Void)?
     private var engine = AVAudioEngine()
     private var samples: [Int16] = []
     private let sampleRate: Double = 16000
@@ -321,6 +323,16 @@ final class AudioRecorder {
             if let channelData = converted.int16ChannelData {
                 let chunk = Array(UnsafeBufferPointer(start: channelData[0], count: Int(converted.frameLength)))
                 self.samples.append(contentsOf: chunk)
+
+                if let onLevel = self.onLevel, !chunk.isEmpty {
+                    // RMS normalizado a 0–1 mapeando -50 dBFS…-10 dBFS.
+                    var sum: Double = 0
+                    for s in chunk { sum += Double(s) * Double(s) }
+                    let rms = (sum / Double(chunk.count)).squareRoot() / 32768.0
+                    let db = 20 * log10(max(rms, 1e-6))
+                    let normalized = Float(min(max((db + 50) / 40, 0), 1))
+                    DispatchQueue.main.async { onLevel(normalized) }
+                }
             }
         }
     }

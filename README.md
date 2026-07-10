@@ -7,7 +7,9 @@ Dictado local para macOS con Apple Silicon. Transcribe voz a texto usando Parake
 - [Requisitos](#requisitos)
 - [Setup](#setup)
 - [Uso](#uso)
+- [Indicador de grabación](#indicador-de-grabacion)
 - [Servidor local](#servidor-local)
+  - [Instalación del servidor local (desde la app)](#instalación-del-servidor-local-desde-la-app)
 - [Permisos macOS](#permisos-macos)
 - [Modelo](#modelo)
 
@@ -34,6 +36,18 @@ Nota: el primer arranque descarga el modelo (~2.5 GB).
 
 El texto transcrito se pega automaticamente donde estes escribiendo y se copia al clipboard.
 
+## Indicador de grabación
+
+Mientras grabas aparece un **HUD flotante** (píldora estilo *liquid glass*) centrado
+arriba, bajo la barra de menú, por encima de todas las ventanas — incluso apps fullscreen:
+
+- **Grabando**: onda que reacciona al nivel real del micrófono.
+- **Transcribiendo**: spinner con "Transcribiendo…".
+- **Listo / Error**: check verde o aviso amarillo por un instante, y se desvanece.
+
+No intercepta clicks ni roba el foco. Se puede desactivar en
+*Preferencias › General › Comportamiento › "Indicador flotante al grabar"*.
+
 ## Servidor local
 
 La transcripción la hace un servidor (FastAPI + MLX) al que la app le envía el audio.
@@ -45,10 +59,25 @@ activo es local (`127.0.0.1`), la app **levanta y detiene el servidor por sí so
 - Se detiene al salir de la app o al cambiar a un servidor remoto.
 - Picker para elegir el modelo local (Parakeet o Whisper) y cambiarlo en caliente.
 
-Requisito: tener el entorno del servidor instalado en el repo (`make server-install`,
-crea el `.venv`) y el modelo descargado. La app detecta la ruta del proyecto
-automáticamente; si no, se configura en *Preferencias › Servidores › Ruta del proyecto*.
-Los modelos se guardan en `~/Library/Application Support/VibePrompt/models`.
+### Instalación del servidor local (desde la app)
+
+La primera vez, instalá el entorno del servidor con un botón — **no hace falta clonar el
+repo ni instalar Python a mano**:
+
+1. *Preferencias › Servidores*, con el servidor local seleccionado → **Instalar servidor local**.
+2. La app usa `uv` (empaquetado en la app) para descargar un Python 3.12 propio, crear un
+   entorno en `~/Library/Application Support/VibePrompt/server` e instalar las dependencias
+   (~300–500 MB, una sola vez).
+3. Al terminar, el servidor arranca solo. Descargá un modelo en *Preferencias › Modelos*
+   (Parakeet ~2.5 GB) y ya podés dictar.
+
+Requisitos: **Apple Silicon** y conexión a internet en la primera instalación. Todo el
+entorno vive en `~/Library/Application Support/VibePrompt/` (borrable sin tocar nada más).
+Si algo falla, usá **Reinstalar / reparar servidor** en la misma pantalla.
+
+> **Desarrollo:** si tenés un checkout del repo con `make server-install` (crea el `.venv`),
+> la app lo autodetecta y tiene prioridad sobre el entorno instalado. También podés fijar la
+> ruta manualmente en *Preferencias › Servidores › Ruta del proyecto (dev)*.
 
 ## Permisos macOS
 

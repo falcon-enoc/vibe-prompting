@@ -133,9 +133,10 @@ final class LocalServerManager {
         log.error("Servidor local terminó inesperadamente (código \(code))")
     }
 
-    /// No se pudo resolver la ruta del proyecto (ni configurada ni autodetectada).
+    /// No se pudo resolver la ruta del proyecto (ni configurada, ni autodetectada,
+    /// ni instalada por la app).
     func setMissingProjectRoot() {
-        status = .failed("No se encontró el proyecto vibe-prompt. Configura la ruta en Preferencias › Servidores.")
+        status = .failed("El servidor local no está instalado. Instálalo en Preferencias › Servidores.")
     }
 
     // MARK: - Health

@@ -86,6 +86,14 @@ struct PreferencesView: View {
                     set: { config.launchAtLogin = $0 }
                 ))
 
+                Toggle("Indicador flotante al grabar", isOn: Binding(
+                    get: { config.showRecordingOverlay },
+                    set: { config.showRecordingOverlay = $0 }
+                ))
+                Text("Muestra una onda flotante sobre la pantalla mientras grabas y transcribes.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
                 Picker("Margen al cortar", selection: Binding(
                     get: { config.recordingTailMs },
                     set: { config.recordingTailMs = $0 }
@@ -240,44 +248,25 @@ struct PreferencesView: View {
         appState.modelManager.models.filter(\.downloaded)
     }
 
+    /// ¿El servidor local resuelto es el gestionado por la app (no un repo de dev)?
+    private var usingManagedServer: Bool {
+        config.resolvedProjectRoot == ServerInstaller.serverSupportDir.path
+    }
+
     @ViewBuilder
     private var localServerSection: some View {
         Section("Servidor local") {
-            HStack {
-                Text("Estado")
-                Spacer()
-                localServerStatusView
+            if appState.serverInstaller.status.isInstalling {
+                installControls
+            } else if config.resolvedProjectRoot == nil {
+                installControls
+            } else {
+                runningControls
             }
 
-            HStack {
-                switch appState.localServer.status {
-                case .running:
-                    Button("Detener servidor") { appState.stopLocalServer() }
-                case .starting:
-                    Button("Iniciando…") {}.disabled(true)
-                default:
-                    Button("Iniciar servidor") { appState.startLocalServer() }
-                }
-                Spacer()
-            }
-
-            Picker("Modelo", selection: Binding(
-                get: { config.localServerModelId },
-                set: { newValue in
-                    config.localServerModelId = newValue
-                    // Si el servidor ya está arriba, cambiar el modelo en caliente.
-                    if appState.localServer.status.isUp {
-                        appState.switchModel(to: newValue)
-                    }
-                }
-            )) {
-                ForEach(downloadedModels) { state in
-                    Text(state.model.name).tag(state.model.id)
-                }
-            }
-
+            // Override para desarrollo: apuntar a un checkout del repo.
             HStack(spacing: 6) {
-                TextField("Ruta del proyecto", text: Binding(
+                TextField("Ruta del proyecto (dev)", text: Binding(
                     get: { config.localServerProjectPath },
                     set: { config.localServerProjectPath = $0 }
                 ))
@@ -285,17 +274,85 @@ struct PreferencesView: View {
                 Button("Elegir…") { chooseProjectFolder() }
             }
 
-            if config.localServerProjectPath.isEmpty {
-                if let auto = AppConfig.autodetectProjectRoot() {
-                    Text("Autodetectado: \(auto)")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                } else {
-                    Text("No se encontró el proyecto automáticamente. Elige la carpeta que contiene .venv/ y server/.")
-                        .font(.caption)
-                        .foregroundStyle(.orange)
+            if config.localServerProjectPath.isEmpty, let auto = AppConfig.autodetectProjectRoot() {
+                Text("Repo de desarrollo detectado: \(auto)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    /// Controles cuando el entorno del servidor ya existe (gestionado o repo dev).
+    @ViewBuilder
+    private var runningControls: some View {
+        HStack {
+            Text("Estado")
+            Spacer()
+            localServerStatusView
+        }
+
+        HStack {
+            switch appState.localServer.status {
+            case .running:
+                Button("Detener servidor") { appState.stopLocalServer() }
+            case .starting:
+                Button("Iniciando…") {}.disabled(true)
+            default:
+                Button("Iniciar servidor") { appState.startLocalServer() }
+            }
+            Spacer()
+        }
+
+        Picker("Modelo", selection: Binding(
+            get: { config.localServerModelId },
+            set: { newValue in
+                config.localServerModelId = newValue
+                // Si el servidor ya está arriba, cambiar el modelo en caliente.
+                if appState.localServer.status.isUp {
+                    appState.switchModel(to: newValue)
                 }
             }
+        )) {
+            ForEach(downloadedModels) { state in
+                Text(state.model.name).tag(state.model.id)
+            }
+        }
+
+        if usingManagedServer {
+            Button("Reinstalar / reparar servidor") {
+                appState.stopLocalServer()
+                appState.installLocalServer()
+            }
+            .font(.caption)
+        }
+    }
+
+    /// Controles de instalación del servidor gestionado por la app.
+    @ViewBuilder
+    private var installControls: some View {
+        switch appState.serverInstaller.status {
+        case .installing(let phase):
+            HStack(spacing: 8) {
+                ProgressView().controlSize(.small)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Instalando servidor local…").font(.system(size: 12))
+                    Text(phase).font(.caption).foregroundStyle(.secondary)
+                }
+                Spacer()
+            }
+            Text("Descarga Python y las dependencias (~300–500 MB). Puede tardar unos minutos.")
+                .font(.caption).foregroundStyle(.secondary)
+
+        case .failed(let msg):
+            Label(msg, systemImage: "xmark.circle.fill")
+                .font(.system(size: 11)).foregroundStyle(.red).lineLimit(5)
+            Button("Reintentar instalación") { appState.installLocalServer() }
+
+        case .notInstalled, .installed:
+            // .installed sin ruta resuelta no debería pasar; se trata como no instalado.
+            Text("El servidor local todavía no está instalado en este Mac.")
+                .font(.caption).foregroundStyle(.secondary)
+            Button("Instalar servidor local") { appState.installLocalServer() }
         }
     }
 

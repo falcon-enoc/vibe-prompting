@@ -1,6 +1,6 @@
 VENV_PYTHON := $(shell [ -f .venv/bin/python3 ] && echo $(CURDIR)/.venv/bin/python3 || echo python3)
 
-.PHONY: help server-install server-dev server-test server-lint create-api-key server-start server-stop server-restart server-rebuild server-status server-logs server-download-model server-clear-hf-cache client-open client-build client-archive client-dmg client-clean dev test lint deploy-server deploy-install tunnel-setup tunnel-up tunnel-down tunnel-logs
+.PHONY: help server-install server-dev server-test server-lint create-api-key server-start server-stop server-restart server-rebuild server-status server-logs server-download-model server-clear-hf-cache client-open client-build client-archive client-dmg client-clean client-vendor-uv dev test lint deploy-server deploy-install tunnel-setup tunnel-up tunnel-down tunnel-logs
 
 help: ## Muestra los targets disponibles
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
@@ -76,6 +76,23 @@ client-dmg: client-archive ## Crea DMG del cliente
 
 client-clean: ## Limpia artefactos de build del cliente
 	rm -rf build/
+
+# Versión de uv que se empaqueta en el .app para instalar el servidor local.
+UV_VERSION := 0.11.28
+UV_VENDOR_DIR := client/VibePrompt/vendor/uv
+
+client-vendor-uv: ## (Re)descarga el binario uv (aarch64-apple-darwin) que se bundlea en el .app
+	@mkdir -p $(UV_VENDOR_DIR)
+	@echo "Descargando uv $(UV_VERSION)..."
+	@curl -sL "https://github.com/astral-sh/uv/releases/download/$(UV_VERSION)/uv-aarch64-apple-darwin.tar.gz" -o $(UV_VENDOR_DIR)/uv.tar.gz
+	@curl -sL "https://github.com/astral-sh/uv/releases/download/$(UV_VERSION)/uv-aarch64-apple-darwin.tar.gz.sha256" -o $(UV_VENDOR_DIR)/uv.tar.gz.sha256
+	@cd $(UV_VENDOR_DIR) && \
+		test "$$(awk '{print $$1}' uv.tar.gz.sha256)" = "$$(shasum -a 256 uv.tar.gz | awk '{print $$1}')" \
+		|| (echo "ERROR: checksum de uv no coincide" && exit 1)
+	@cd $(UV_VENDOR_DIR) && tar xzf uv.tar.gz --strip-components=1 uv-aarch64-apple-darwin/uv && rm -f uv.tar.gz uv.tar.gz.sha256
+	@echo "$(UV_VERSION)" > $(UV_VENDOR_DIR)/VERSION
+	@chmod +x $(UV_VENDOR_DIR)/uv
+	@echo "uv vendorizado: $$($(UV_VENDOR_DIR)/uv --version)"
 
 # --- Shortcuts ---
 

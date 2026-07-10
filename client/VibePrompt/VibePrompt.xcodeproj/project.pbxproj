@@ -7,13 +7,16 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		04254AAACFF4870F3AB06409 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = BEB5C85C5A4DFA792ED26AC0 /* Assets.xcassets */; };
 		0FE3936541E111400003F03E /* LocalServerManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6229FBECCC3904B84D52D4BB /* LocalServerManager.swift */; };
 		1961C29CFA302B1664128C71 /* TranscriptionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F85A41A8749C836893A87BD /* TranscriptionService.swift */; };
 		1B90187A88E2DA90998192FA /* HotkeyManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20586321467D89DF0F7408CD /* HotkeyManager.swift */; };
 		2289C615929AD50E0C9603F0 /* PreferencesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A13AB6E2F60EFE864346020 /* PreferencesView.swift */; };
 		2D3C51B121B0E79C5041A9DB /* LaunchAtLoginManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C08A3EDFD9BC36579CB559B /* LaunchAtLoginManager.swift */; };
+		3277CDFA13E9AE7130BBC8FE /* RecordingOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6865CBA6F1BD28ECD33F4373 /* RecordingOverlay.swift */; };
 		3EA9A00C57378ED98EC23A55 /* MenuBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE82102AFF3FFEDF71838C7D /* MenuBarView.swift */; };
 		595DABA5507569E0D1BCA05C /* ModelManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7114D73B46085F8DB34E8289 /* ModelManager.swift */; };
+		AABB01CC01DD01EE01FF0102 /* ServerInstaller.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABB01CC01DD01EE01FF0101 /* ServerInstaller.swift */; };
 		5B91292A365927D1B8DC80A9 /* VibePromptApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67F5D9658E24B969BF3E016D /* VibePromptApp.swift */; };
 		5F7396D9044EC0C93AFD6BCC /* PasteService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 25C2B4F6CBE0C130F3199EE8 /* PasteService.swift */; };
 		62A1A9463791C793E0AAEE11 /* Config.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7E3471E32BAD4F109FF9E82 /* Config.swift */; };
@@ -34,10 +37,13 @@
 		612D6FA7DE80D65A89A82F28 /* AudioRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioRecorder.swift; sourceTree = "<group>"; };
 		6229FBECCC3904B84D52D4BB /* LocalServerManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalServerManager.swift; sourceTree = "<group>"; };
 		67F5D9658E24B969BF3E016D /* VibePromptApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VibePromptApp.swift; sourceTree = "<group>"; };
+		6865CBA6F1BD28ECD33F4373 /* RecordingOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingOverlay.swift; sourceTree = "<group>"; };
 		7114D73B46085F8DB34E8289 /* ModelManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelManager.swift; sourceTree = "<group>"; };
+		AABB01CC01DD01EE01FF0101 /* ServerInstaller.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerInstaller.swift; sourceTree = "<group>"; };
 		7F85A41A8749C836893A87BD /* TranscriptionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptionService.swift; sourceTree = "<group>"; };
 		AAB3F5473DF19E574485C9EE /* TextPostProcessor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextPostProcessor.swift; sourceTree = "<group>"; };
 		AE82102AFF3FFEDF71838C7D /* MenuBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarView.swift; sourceTree = "<group>"; };
+		BEB5C85C5A4DFA792ED26AC0 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		E7E3471E32BAD4F109FF9E82 /* Config.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Config.swift; sourceTree = "<group>"; };
 		FEC6489EA472FEF534AD13B3 /* VibePrompt.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = VibePrompt.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -55,6 +61,7 @@
 			isa = PBXGroup;
 			children = (
 				143180597420263701D94DF9 /* AppState.swift */,
+				BEB5C85C5A4DFA792ED26AC0 /* Assets.xcassets */,
 				612D6FA7DE80D65A89A82F28 /* AudioRecorder.swift */,
 				E7E3471E32BAD4F109FF9E82 /* Config.swift */,
 				20586321467D89DF0F7408CD /* HotkeyManager.swift */,
@@ -63,8 +70,10 @@
 				AE82102AFF3FFEDF71838C7D /* MenuBarView.swift */,
 				7114D73B46085F8DB34E8289 /* ModelManager.swift */,
 				43024A2EE8C9801906A41A20 /* OnboardingView.swift */,
+				AABB01CC01DD01EE01FF0101 /* ServerInstaller.swift */,
 				25C2B4F6CBE0C130F3199EE8 /* PasteService.swift */,
 				1A13AB6E2F60EFE864346020 /* PreferencesView.swift */,
+				6865CBA6F1BD28ECD33F4373 /* RecordingOverlay.swift */,
 				AAB3F5473DF19E574485C9EE /* TextPostProcessor.swift */,
 				7F85A41A8749C836893A87BD /* TranscriptionService.swift */,
 				03BB6C1DA6C3BC16B4313808 /* VibePrompt.entitlements */,
@@ -89,6 +98,8 @@
 			buildConfigurationList = CFB6C0425D3CEA7489193385 /* Build configuration list for PBXNativeTarget "VibePrompt" */;
 			buildPhases = (
 				E9BDA7E0F5F5E16B2FE74400 /* Sources */,
+				9BCD681BE8A2631815AA06C6 /* Resources */,
+				AABB01CC01DD01EE01FF0103 /* Bundle server + uv */,
 			);
 			buildRules = (
 			);
@@ -135,6 +146,35 @@
 		};
 /* End PBXProject section */
 
+/* Begin PBXResourcesBuildPhase section */
+		9BCD681BE8A2631815AA06C6 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				04254AAACFF4870F3AB06409 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		AABB01CC01DD01EE01FF0103 /* Bundle server + uv */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+			);
+			name = "Bundle server + uv";
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "set -e\nUV_SRC=\"${SRCROOT}/vendor/uv/uv\"\nSERVER_SRC=\"${SRCROOT}/../../server\"\nRES_DIR=\"${BUILT_PRODUCTS_DIR}/${CONTENTS_FOLDER_PATH}/Resources\"\nif [ ! -f \"$UV_SRC\" ]; then echo \"error: falta el binario uv en $UV_SRC (corre: make client-vendor-uv)\"; exit 1; fi\nif [ ! -f \"$SERVER_SRC/pyproject.toml\" ]; then echo \"error: no se encontro el servidor en $SERVER_SRC\"; exit 1; fi\nmkdir -p \"$RES_DIR\"\ncp -f \"$UV_SRC\" \"$RES_DIR/uv\"\nchmod +x \"$RES_DIR/uv\"\ncodesign --force --sign - \"$RES_DIR/uv\"\nrm -rf \"$RES_DIR/server\"\nmkdir -p \"$RES_DIR/server\"\ncp \"$SERVER_SRC/pyproject.toml\" \"$RES_DIR/server/\"\ncp -R \"$SERVER_SRC/src\" \"$RES_DIR/server/src\"\nfind \"$RES_DIR/server\" -name __pycache__ -type d -prune -exec rm -rf {} + 2>/dev/null || true\nfind \"$RES_DIR/server\" -name \"*.egg-info\" -type d -prune -exec rm -rf {} + 2>/dev/null || true\nfind \"$RES_DIR/server\" -name \"*.pyc\" -delete 2>/dev/null || true\necho \"Bundled uv + server en $RES_DIR\"\n";
+		};
+/* End PBXShellScriptBuildPhase section */
+
 /* Begin PBXSourcesBuildPhase section */
 		E9BDA7E0F5F5E16B2FE74400 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
@@ -149,8 +189,10 @@
 				3EA9A00C57378ED98EC23A55 /* MenuBarView.swift in Sources */,
 				595DABA5507569E0D1BCA05C /* ModelManager.swift in Sources */,
 				C7C7D55E199E46C293A99742 /* OnboardingView.swift in Sources */,
+				AABB01CC01DD01EE01FF0102 /* ServerInstaller.swift in Sources */,
 				5F7396D9044EC0C93AFD6BCC /* PasteService.swift in Sources */,
 				2289C615929AD50E0C9603F0 /* PreferencesView.swift in Sources */,
+				3277CDFA13E9AE7130BBC8FE /* RecordingOverlay.swift in Sources */,
 				A06837A9E1FB3B04CEE8EC8A /* TextPostProcessor.swift in Sources */,
 				1961C29CFA302B1664128C71 /* TranscriptionService.swift in Sources */,
 				5B91292A365927D1B8DC80A9 /* VibePromptApp.swift in Sources */,

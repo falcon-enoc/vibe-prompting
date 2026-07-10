@@ -147,6 +147,11 @@ final class AppConfig {
         didSet { UserDefaults.standard.set(soundFeedback, forKey: "soundFeedback") }
     }
 
+    /// HUD flotante en pantalla mientras se graba/transcribe.
+    var showRecordingOverlay: Bool = UserDefaults.standard.object(forKey: "showRecordingOverlay") as? Bool ?? true {
+        didSet { UserDefaults.standard.set(showRecordingOverlay, forKey: "showRecordingOverlay") }
+    }
+
     var launchAtLogin: Bool = UserDefaults.standard.bool(forKey: "launchAtLogin") {
         didSet {
             UserDefaults.standard.set(launchAtLogin, forKey: "launchAtLogin")
@@ -217,12 +222,24 @@ final class AppConfig {
         URLComponents(string: activeServer.url)?.port ?? 8420
     }
 
-    /// Ruta del proyecto resuelta: la configurada si es válida, si no autodetectada.
+    /// Ruta del proyecto resuelta, por prioridad:
+    /// 1. la configurada a mano (override de dev), si es válida;
+    /// 2. un checkout de desarrollo autodetectado;
+    /// 3. el servidor instalado por la app (`ServerInstaller`).
     var resolvedProjectRoot: String? {
         if !localServerProjectPath.isEmpty, Self.isValidProjectRoot(localServerProjectPath) {
             return localServerProjectPath
         }
-        return Self.autodetectProjectRoot()
+        if let dev = Self.autodetectProjectRoot() {
+            return dev
+        }
+        return Self.managedServerRoot()
+    }
+
+    /// Ruta del servidor gestionado por la app, si está instalado y es válido.
+    static func managedServerRoot() -> String? {
+        let path = ServerInstaller.serverSupportDir.path
+        return isValidProjectRoot(path) ? path : nil
     }
 
     /// Una ruta es válida si contiene el venv y el paquete del servidor.
