@@ -23,9 +23,19 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("vibe_prompt")
 
 
+def _assert_secure_admin_token(settings: Settings) -> None:
+    if settings.ADMIN_TOKEN == "change-me" and settings.HOST not in ("127.0.0.1", "::1", "localhost"):
+        raise RuntimeError(
+            "ADMIN_TOKEN sigue en su valor por defecto inseguro ('change-me') "
+            f"mientras HOST está expuesto en {settings.HOST!r}. "
+            "Define ADMIN_TOKEN en el entorno/.env antes de exponer el servidor fuera de localhost."
+        )
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     settings = Settings()
+    _assert_secure_admin_token(settings)
     model_info = SUPPORTED_MODELS.get(settings.MODEL_ID, {})
     backend_type = model_info.get("backend", settings.MODEL_BACKEND)
     app.state.settings = settings
