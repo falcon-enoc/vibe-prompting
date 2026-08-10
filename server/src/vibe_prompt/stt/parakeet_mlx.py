@@ -63,7 +63,7 @@ class ParakeetMLXBackend:
             f"(RTF {rtf:.2f}) | {len(text)} chars"
         )
         return TranscribeResult(
-            text=text, language="en", duration_ms=duration_ms,
+            text=text, language=language or "auto", duration_ms=duration_ms,
             processing_ms=processing_ms, model=self._model_path,
         )
 
