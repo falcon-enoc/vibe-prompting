@@ -14,12 +14,17 @@ final class HotkeyManager {
     private var eventTap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
     private var isRecording = false
+    private var recordingStartedAt: Date?
     private var permissionTimer: Timer?
     private var healthTimer: Timer?
     private var pendingStart: DispatchWorkItem?
 
     private static let rightCommandKeyCode: UInt16 = 0x36
     private static let comboDetectionDelay: TimeInterval = 0.15
+    /// After recording has actually started, only treat other keys as a
+    /// combo-cancel signal within this window — past it, normal typing
+    /// while recording must not cut the recording short.
+    private static let comboGraceWindow: TimeInterval = 0.3
 
     func start() {
         guard AXIsProcessTrusted() else {
@@ -153,6 +158,7 @@ final class HotkeyManager {
                 log.info("Right Cmd UP → stopAndTranscribe")
                 #endif
                 isRecording = false
+                recordingStartedAt = nil
                 DispatchQueue.main.async { self.onStopRecording?() }
             } else if !cmdDown && pendingStart != nil {
                 // Key released before recording started — just cancel
@@ -168,6 +174,7 @@ final class HotkeyManager {
                     log.info("Right Cmd toggle → stopAndTranscribe")
                     #endif
                     isRecording = false
+                    recordingStartedAt = nil
                     DispatchQueue.main.async { self.onStopRecording?() }
                 }
             }
@@ -185,6 +192,7 @@ final class HotkeyManager {
             log.info("Right Cmd → startRecording (tras \(Self.comboDetectionDelay)s)")
             #endif
             self.isRecording = true
+            self.recordingStartedAt = Date()
             self.onStartRecording?()
         }
         pendingStart = item
@@ -200,10 +208,19 @@ final class HotkeyManager {
             return
         }
         if isRecording {
+            let withinGraceWindow = recordingStartedAt.map {
+                Date().timeIntervalSince($0) < Self.comboGraceWindow
+            } ?? false
+            guard withinGraceWindow else {
+                // Recording is past the initial grace window — normal typing
+                // while recording must not cut it short.
+                return
+            }
             #if DEBUG
             log.info("Combo detectado → cancelando grabación activa")
             #endif
             isRecording = false
+            recordingStartedAt = nil
             DispatchQueue.main.async { self.onCancelRecording?() }
         }
     }
