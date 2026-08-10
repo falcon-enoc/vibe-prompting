@@ -269,6 +269,9 @@ final class AppState {
         } catch {
             log.error("Error al iniciar grabación: \(error.localizedDescription)")
             status = .error(error.localizedDescription)
+            if config.soundFeedback {
+                Self.playSound("Basso")
+            }
             Task { @MainActor in
                 try? await Task.sleep(for: .seconds(3))
                 if case .error = self.status { self.status = .idle }
@@ -283,6 +286,9 @@ final class AppState {
         log.info("Grabación cancelada (combo detectado)")
         #endif
         _ = try? recorder.stopRecording()
+        if config.soundFeedback {
+            Self.playSound("Pop")
+        }
         status = .idle
     }
 
@@ -308,6 +314,9 @@ final class AppState {
             } catch {
                 log.error("Error al detener grabación: \(error.localizedDescription)")
                 status = .error(error.localizedDescription)
+                if config.soundFeedback {
+                    Self.playSound("Basso")
+                }
                 try? await Task.sleep(for: .seconds(3))
                 if case .error = status { status = .idle }
                 return
@@ -344,6 +353,9 @@ final class AppState {
             } catch {
                 log.error("Error en transcripción: \(error.localizedDescription)")
                 status = .error(error.localizedDescription)
+                if config.soundFeedback {
+                    Self.playSound("Basso")
+                }
                 try? await Task.sleep(for: .seconds(3))
                 if case .error = status { status = .idle }
             }
