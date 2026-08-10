@@ -130,6 +130,9 @@ struct RecordingOverlayView: View {
         HStack(spacing: 10) {
             switch appState.status {
             case .recording:
+                Circle()
+                    .fill(Color.orange)
+                    .frame(width: 8, height: 8)
                 OverlayWaveform(level: { appState.audioLevel })
             case .transcribing:
                 ProgressView()
