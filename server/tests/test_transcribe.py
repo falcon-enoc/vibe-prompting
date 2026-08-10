@@ -32,9 +32,10 @@ async def test_transcribe_valid_wav(client, test_api_key):
 
 
 @pytest.mark.anyio
-async def test_transcribe_no_api_key(client):
+async def test_transcribe_no_api_key(remote_client):
+    """A non-localhost caller without an API key must be rejected."""
     wav_bytes = _make_wav_bytes(160)
-    response = await client.post(
+    response = await remote_client.post(
         "/transcribe",
         files={"audio": ("audio.wav", wav_bytes, "audio/wav")},
     )

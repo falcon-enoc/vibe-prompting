@@ -53,8 +53,14 @@ def test_api_key():
     return "test-key-12345"
 
 
-@pytest_asyncio.fixture(scope="function")
-async def client(mock_backend, test_api_key):
+async def _build_client(mock_backend, test_api_key, transport_client: tuple[str, int]):
+    """Shared setup for the `client`/`remote_client` fixtures.
+
+    `transport_client` is the fake peer address httpx's ASGITransport reports
+    to the app (defaults to 127.0.0.1) — it drives `_is_localhost()` in
+    vibe_prompt.auth, so tests that need to exercise the "real remote caller"
+    path must override it to something non-loopback.
+    """
     app = create_app()
 
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -98,7 +104,7 @@ async def client(mock_backend, test_api_key):
 
         # Patch lifespan by manually setting app state before transport is used
         async with AsyncClient(
-            transport=ASGITransport(app=app),
+            transport=ASGITransport(app=app, client=transport_client),
             base_url="http://test",
         ) as ac:
             # Override state after app startup would normally run
@@ -114,3 +120,19 @@ async def client(mock_backend, test_api_key):
                 {"API_KEY_DB": db_path, "ADMIN_TOKEN": "test-admin-token", "MODEL_ID": "mock", "MAX_AUDIO_SIZE_MB": 25, "RATE_LIMIT_TRANSCRIBE": "30/minute", "RATE_LIMIT_ADMIN": "10/minute", "IDLE_UNLOAD_MINUTES": 10},
             )()
             yield ac
+
+
+@pytest_asyncio.fixture(scope="function")
+async def client(mock_backend, test_api_key):
+    """Simulates a request from localhost (127.0.0.1) — subject to the
+    no-API-key auth bypass in vibe_prompt.auth._is_localhost()."""
+    async for ac in _build_client(mock_backend, test_api_key, ("127.0.0.1", 123)):
+        yield ac
+
+
+@pytest_asyncio.fixture(scope="function")
+async def remote_client(mock_backend, test_api_key):
+    """Simulates a request from a real remote peer (not localhost) — the
+    localhost auth bypass must NOT apply here."""
+    async for ac in _build_client(mock_backend, test_api_key, ("203.0.113.5", 54321)):
+        yield ac

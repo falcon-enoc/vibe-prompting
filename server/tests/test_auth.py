@@ -16,13 +16,27 @@ def _make_wav_bytes(num_frames: int = 160) -> bytes:
 
 
 @pytest.mark.anyio
-async def test_no_api_key_returns_401(client):
+async def test_no_api_key_returns_401(remote_client):
+    """A non-localhost caller without an API key must be rejected."""
+    wav_bytes = _make_wav_bytes()
+    response = await remote_client.post(
+        "/transcribe",
+        files={"audio": ("audio.wav", wav_bytes, "audio/wav")},
+    )
+    assert response.status_code == 401
+
+
+@pytest.mark.anyio
+async def test_no_api_key_from_localhost_is_allowed(client):
+    """Localhost callers are explicitly trusted without an API key
+    (see vibe_prompt.auth._is_localhost) — pinning this down so a future
+    change to that bypass is a deliberate, visible test update."""
     wav_bytes = _make_wav_bytes()
     response = await client.post(
         "/transcribe",
         files={"audio": ("audio.wav", wav_bytes, "audio/wav")},
     )
-    assert response.status_code == 401
+    assert response.status_code == 200
 
 
 @pytest.mark.anyio
