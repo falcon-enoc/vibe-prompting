@@ -73,6 +73,7 @@ client-dmg: client-archive ## Crea DMG del cliente
 		hdiutil create -volname "VibePrompt" -srcfolder build/dmg -ov -format UDZO "build/$(DMG_NAME)"
 	@rm -rf build/dmg
 	@echo "DMG creado: build/$(DMG_NAME)"
+	@test -x scripts/sync-release-to-drive.sh && scripts/sync-release-to-drive.sh || true
 
 client-clean: ## Limpia artefactos de build del cliente
 	rm -rf build/

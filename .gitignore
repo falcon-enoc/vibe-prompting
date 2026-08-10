@@ -33,3 +33,6 @@ server/data/
 CLAUDE.md
 idea.md
 benchmarks/
+
+# Scripts locales (no se commitean)
+scripts/sync-release-to-drive.sh
