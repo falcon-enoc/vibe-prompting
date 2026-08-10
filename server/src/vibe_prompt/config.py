@@ -12,7 +12,7 @@ class Settings(BaseSettings):
     MODEL_ID: str = "mlx-community/whisper-base-mlx"
     MODEL_STORAGE_PATH: str = "~/Library/Application Support/VibePrompt/models"
     LANGUAGE: str | None = None
-    HOST: str = "0.0.0.0"
+    HOST: str = "127.0.0.1"
     PORT: int = 8420
     ADMIN_TOKEN: str = "change-me"
     API_KEY_DB: str = "data/api_keys.db"
