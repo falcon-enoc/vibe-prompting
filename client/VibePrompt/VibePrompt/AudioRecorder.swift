@@ -242,6 +242,34 @@ final class AudioRecorder {
         setInputDevice(on: engine)
 
         let inputNode = engine.inputNode
+
+        // Enable voice processing so the HAL negotiates a stable I/O path with
+        // the system's microphone mode (Voice Isolation/Wide Spectrum) on the
+        // internal mic. Without this, some Mic Mode configurations can cause
+        // the HAL to silently deliver zero-filled buffers to a raw tap, which
+        // surfaces later as AudioRecorderError.engineFailure("no captó audio").
+        if !inputNode.isVoiceProcessingEnabled {
+            do {
+                try inputNode.setVoiceProcessingEnabled(true)
+            } catch {
+                #if DEBUG
+                print("[AudioRecorder] No se pudo habilitar voice processing: \(error.localizedDescription)")
+                #endif
+            }
+        }
+
+        // Voice processing is a full-duplex Audio Unit (input + output share
+        // the same HAL I/O unit). Without an active output render path, the
+        // unit's I/O cycle never runs and the input side silently delivers
+        // zero-filled buffers — this engine only ever used the input node,
+        // so there was no output to drive that cycle. Routing the (muted)
+        // main mixer to the output keeps a real render loop running without
+        // playing anything audible.
+        if inputNode.isVoiceProcessingEnabled {
+            let mixer = engine.mainMixerNode
+            mixer.outputVolume = 0
+        }
+
         let inputFormat = inputNode.inputFormat(forBus: 0)
 
         #if DEBUG
