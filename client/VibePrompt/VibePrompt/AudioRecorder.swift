@@ -1,6 +1,9 @@
 import AVFoundation
 import CoreAudio
 import Foundation
+import os
+
+private let log = Logger(subsystem: "cl.enocfalcon.vibeprompt", category: "AudioRecorder")
 
 // MARK: - Audio Device
 
@@ -52,9 +55,7 @@ final class AudioRecorder {
         node.removeTap(onBus: 0)
         engine.stop()
         warmedUp = true
-        #if DEBUG
-        print("[AudioRecorder] Warmup completo — HAL primed")
-        #endif
+        log.debug("Warmup completo — HAL primed")
     }
     private var selectedDeviceUID: String?
 
@@ -243,40 +244,30 @@ final class AudioRecorder {
 
         let inputNode = engine.inputNode
 
-        // Enable voice processing so the HAL negotiates a stable I/O path with
-        // the system's microphone mode (Voice Isolation/Wide Spectrum) on the
-        // internal mic. Without this, some Mic Mode configurations can cause
-        // the HAL to silently deliver zero-filled buffers to a raw tap, which
-        // surfaces later as AudioRecorderError.engineFailure("no captó audio").
-        if !inputNode.isVoiceProcessingEnabled {
+        // Voice processing (AUVoiceProcessingIO) was tried here to work around
+        // a HAL negotiation issue on some Mic Mode configurations, but on
+        // Macs with a multi-element mic array it instead negotiates a
+        // multichannel format (e.g. 9ch) whose layout our mono downmix
+        // doesn't understand — AVAudioConverter "succeeds" but emits silence
+        // for the whole recording. The plain (non voice-processed) input
+        // format is what warmup() already validates successfully, so make
+        // sure voice processing stays off rather than opportunistically
+        // enabling it.
+        if inputNode.isVoiceProcessingEnabled {
             do {
-                try inputNode.setVoiceProcessingEnabled(true)
+                try inputNode.setVoiceProcessingEnabled(false)
             } catch {
-                #if DEBUG
-                print("[AudioRecorder] No se pudo habilitar voice processing: \(error.localizedDescription)")
-                #endif
+                log.error("No se pudo deshabilitar voice processing: \(error.localizedDescription, privacy: .public)")
             }
         }
-
-        // Voice processing is a full-duplex Audio Unit (input + output share
-        // the same HAL I/O unit). Without an active output render path, the
-        // unit's I/O cycle never runs and the input side silently delivers
-        // zero-filled buffers — this engine only ever used the input node,
-        // so there was no output to drive that cycle. Routing the (muted)
-        // main mixer to the output keeps a real render loop running without
-        // playing anything audible.
-        if inputNode.isVoiceProcessingEnabled {
-            let mixer = engine.mainMixerNode
-            mixer.outputVolume = 0
-        }
+        log.debug("Voice processing enabled: \(inputNode.isVoiceProcessingEnabled, privacy: .public), deviceUID: \(self.selectedDeviceUID ?? "default", privacy: .public)")
 
         let inputFormat = inputNode.inputFormat(forBus: 0)
 
-        #if DEBUG
-        print("[AudioRecorder] Input format — rate: \(inputFormat.sampleRate), ch: \(inputFormat.channelCount)")
-        #endif
+        log.debug("Input format — rate: \(inputFormat.sampleRate, privacy: .public), ch: \(inputFormat.channelCount, privacy: .public)")
 
         guard inputFormat.sampleRate > 0, inputFormat.channelCount > 0 else {
+            log.error("Formato de entrada inválido — rate: \(inputFormat.sampleRate, privacy: .public), ch: \(inputFormat.channelCount, privacy: .public)")
             throw AudioRecorderError.engineFailure(
                 "Dispositivo de audio no listo (sample rate: \(inputFormat.sampleRate)). " +
                 "Si usas AirPods/Bluetooth, espera a que se conecten completamente y vuelve a intentarlo."
@@ -294,6 +285,7 @@ final class AudioRecorder {
 
         // Create converter once — reused across all tap callbacks
         guard let converter = AVAudioConverter(from: inputFormat, to: targetFormat) else {
+            log.error("No se pudo crear el convertidor — input: \(inputFormat.sampleRate, privacy: .public)Hz → \(self.sampleRate, privacy: .public)Hz")
             throw AudioRecorderError.engineFailure(
                 "No se pudo crear el convertidor de audio (input: \(inputFormat.sampleRate)Hz → \(sampleRate)Hz). " +
                 "El formato del dispositivo puede no ser compatible."
@@ -312,7 +304,9 @@ final class AudioRecorder {
 
         do {
             try engine.start()
+            log.debug("Engine iniciado correctamente")
         } catch {
+            log.error("Fallo al iniciar el engine: \(error.localizedDescription, privacy: .public)")
             inputNode.removeTap(onBus: 0)
             activeConverter = nil
             activeConvertedBuffer = nil
@@ -342,9 +336,7 @@ final class AudioRecorder {
             converter.convert(to: converted, error: &error, withInputFrom: inputBlock)
 
             if let error {
-                #if DEBUG
-                print("[AudioRecorder] Conversion error: \(error.localizedDescription)")
-                #endif
+                log.error("Error de conversión: \(error.localizedDescription, privacy: .public)")
                 return
             }
 
@@ -373,9 +365,7 @@ final class AudioRecorder {
         // Discard samples from before the format change — they're typically
         // zeros from the A2DP→HFP transition on Bluetooth devices.
         samples = []
-        #if DEBUG
-        print("[AudioRecorder] Engine restarting (format change) — samples cleared")
-        #endif
+        log.debug("Engine restarting (format change) — samples cleared")
         try startEngine()
     }
 
@@ -390,18 +380,18 @@ final class AudioRecorder {
         activeConvertedBuffer = nil
 
         guard !samples.isEmpty else {
+            log.error("stopRecording: 0 samples capturados (tap nunca entregó buffers)")
             samples = []
             throw AudioRecorderError.noAudioCaptured
         }
 
         let peak = samples.map { abs(Int32($0)) }.max() ?? 0
-        #if DEBUG
         let nonZero = samples.filter { $0 != 0 }.count
-        print("[AudioRecorder] samples: \(samples.count), peak: \(peak), nonZero: \(nonZero)/\(samples.count) (\(samples.count > 0 ? nonZero * 100 / samples.count : 0)%)")
-        #endif
+        log.debug("samples: \(self.samples.count, privacy: .public), peak: \(peak, privacy: .public), nonZero: \(nonZero, privacy: .public)/\(self.samples.count, privacy: .public) (\(self.samples.count > 0 ? nonZero * 100 / self.samples.count : 0, privacy: .public)%)")
 
         // Detect silent audio (HAL I/O failure delivers zero-filled buffers)
         guard peak > 0 else {
+            log.error("stopRecording: audio silencioso (peak=0) — HAL entregó buffers en cero")
             samples = []
             throw AudioRecorderError.engineFailure(
                 "El micrófono no capturó audio real. Intenta de nuevo."
