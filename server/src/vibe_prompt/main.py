@@ -10,6 +10,7 @@ from .model_manager import ModelManager
 from .auth import init_db, ensure_dev_key, admin_router
 from .routes.health import router as health_router
 from .routes.transcribe import router as transcribe_router
+from .routes.transcribe_stream import router as transcribe_stream_router
 from .routes.models import router as models_router
 from .routes.logs import router as logs_router
 from .middleware import (
@@ -89,6 +90,7 @@ def create_app() -> FastAPI:
     # Routes
     app.include_router(health_router)
     app.include_router(transcribe_router)
+    app.include_router(transcribe_stream_router)
     app.include_router(models_router)
     app.include_router(logs_router)
     app.include_router(admin_router)
