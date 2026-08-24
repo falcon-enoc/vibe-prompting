@@ -341,6 +341,15 @@ final class AppState {
             let audioData: Data
             do {
                 audioData = try recorder.stopRecording()
+            } catch AudioRecorderError.discardedTooShort {
+                #if DEBUG
+                log.info("Grabación descartada — muy corta o sin voz detectable")
+                #endif
+                if config.soundFeedback {
+                    Self.playSound("Pop")
+                }
+                status = .idle
+                return
             } catch {
                 log.error("Error al detener grabación: \(error.localizedDescription)")
                 status = .error(error.localizedDescription)

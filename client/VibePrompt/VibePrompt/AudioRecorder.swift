@@ -17,6 +17,7 @@ enum AudioRecorderError: LocalizedError {
     case permissionDenied
     case engineFailure(String)
     case noAudioCaptured
+    case discardedTooShort
 
     var errorDescription: String? {
         switch self {
@@ -26,6 +27,8 @@ enum AudioRecorderError: LocalizedError {
             return "Error al iniciar el audio: \(msg)"
         case .noAudioCaptured:
             return "No se capturó audio. Verifica que el micrófono esté conectado y seleccionado correctamente."
+        case .discardedTooShort:
+            return "Grabación descartada: muy corta o sin voz detectable."
         }
     }
 }
@@ -36,6 +39,10 @@ final class AudioRecorder {
     private var engine = AVAudioEngine()
     private var samples: [Int16] = []
     private let sampleRate: Double = 16000
+    /// Grabaciones por debajo de esto se descartan sin llegar al servidor —
+    /// evita despertar el modelo por un clic accidental del hotkey.
+    private let minDurationMs: Double = 400
+    private let minEnergyDb: Double = -45
     private var configObserver: NSObjectProtocol?
     private var warmedUp = false
     private var activeConverter: AVAudioConverter?
@@ -396,6 +403,17 @@ final class AudioRecorder {
             throw AudioRecorderError.engineFailure(
                 "El micrófono no capturó audio real. Intenta de nuevo."
             )
+        }
+
+        let durationMs = Double(samples.count) / sampleRate * 1000
+        let sumSquares = samples.reduce(0.0) { $0 + Double($1) * Double($1) }
+        let rms = (sumSquares / Double(samples.count)).squareRoot() / 32768.0
+        let db = 20 * log10(max(rms, 1e-6))
+
+        guard durationMs >= minDurationMs, db >= minEnergyDb else {
+            log.debug("stopRecording: descartada — duration: \(durationMs, privacy: .public)ms, db: \(db, privacy: .public)")
+            samples = []
+            throw AudioRecorderError.discardedTooShort
         }
 
         let data = makeWAVData(samples: samples)
