@@ -10,6 +10,7 @@ Dictado local para macOS con Apple Silicon. Transcribe voz a texto usando Parake
 - [Indicador de grabación](#indicador-de-grabacion)
 - [Servidor local](#servidor-local)
   - [Instalación del servidor local (desde la app)](#instalación-del-servidor-local-desde-la-app)
+  - [Grabaciones muy cortas o silenciosas](#grabaciones-muy-cortas-o-silenciosas)
 - [Permisos macOS](#permisos-macos)
 - [Modelo](#modelo)
 
@@ -78,6 +79,13 @@ Si algo falla, usá **Reinstalar / reparar servidor** en la misma pantalla.
 > **Desarrollo:** si tenés un checkout del repo con `make server-install` (crea el `.venv`),
 > la app lo autodetecta y tiene prioridad sobre el entorno instalado. También podés fijar la
 > ruta manualmente en *Preferencias › Servidores › Ruta del proyecto (dev)*.
+
+### Grabaciones muy cortas o silenciosas
+
+El modelo se carga en memoria bajo demanda (en la primera transcripción) y se descarga solo
+tras un rato sin uso. Para que un clic accidental del atajo no dispare esa carga innecesaria,
+una grabación de menos de ~400ms o sin voz audible (silencio/ruido de tecla) se descarta antes
+de enviarse — no se transcribe ni se muestra error, solo un sonido corto y vuelta a idle.
 
 ## Permisos macOS
 
