@@ -152,6 +152,14 @@ final class AppConfig {
         didSet { UserDefaults.standard.set(showRecordingOverlay, forKey: "showRecordingOverlay") }
     }
 
+    /// Escribe el texto directamente en el campo con foco mientras se dicta,
+    /// en vez de pegarlo todo al soltar la tecla. Requiere permiso de
+    /// Accesibilidad, modelo Parakeet y modo de dictado "raw" — si algo de
+    /// eso falta, se cae automáticamente al pegado normal al final.
+    var liveTranscriptionEnabled: Bool = UserDefaults.standard.object(forKey: "liveTranscriptionEnabled") as? Bool ?? true {
+        didSet { UserDefaults.standard.set(liveTranscriptionEnabled, forKey: "liveTranscriptionEnabled") }
+    }
+
     var launchAtLogin: Bool = UserDefaults.standard.bool(forKey: "launchAtLogin") {
         didSet {
             UserDefaults.standard.set(launchAtLogin, forKey: "launchAtLogin")

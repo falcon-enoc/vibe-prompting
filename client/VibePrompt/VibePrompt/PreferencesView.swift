@@ -94,6 +94,14 @@ struct PreferencesView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
+                Toggle("Dictado en vivo", isOn: Binding(
+                    get: { config.liveTranscriptionEnabled },
+                    set: { config.liveTranscriptionEnabled = $0 }
+                ))
+                Text("Escribe el texto directamente donde tienes el cursor mientras dictas, en vez de pegarlo todo al final. Requiere permiso de Accesibilidad, el modelo Parakeet y modo de dictado «Texto limpio» — si algo falta, se usa el pegado normal.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
                 Picker("Margen al cortar", selection: Binding(
                     get: { config.recordingTailMs },
                     set: { config.recordingTailMs = $0 }
