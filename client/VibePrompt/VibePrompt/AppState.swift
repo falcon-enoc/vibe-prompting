@@ -51,6 +51,10 @@ final class AppState {
     let serverInstaller = ServerInstaller()
     private let recorder = AudioRecorder()
     let transcriptionService = TranscriptionService()
+    private let liveTranscriptionService = LiveTranscriptionService()
+    private let axInjector = AXTextInjector()
+    private var liveModeActive = false
+    private var liveFinalContinuation: CheckedContinuation<LiveTranscriptionService.Event?, Never>?
     private let hotkeyManager = HotkeyManager()
     @ObservationIgnored private lazy var overlay = RecordingOverlayController(appState: self)
     var startupIssue: StartupIssue?
@@ -296,6 +300,7 @@ final class AppState {
             audioLevel = 0
             try recorder.startRecording(deviceUID: deviceUID)
             status = .recording
+            beginLiveModeIfEligible()
         } catch {
             log.error("Error al iniciar grabación: \(error.localizedDescription)")
             status = .error(error.localizedDescription)
@@ -316,6 +321,8 @@ final class AppState {
         log.info("Grabación cancelada (combo detectado)")
         #endif
         _ = try? recorder.stopRecording()
+        recorder.onChunk = nil
+        endLiveModeDiscarding()
         if config.soundFeedback {
             Self.playSound("Pop")
         }
@@ -341,8 +348,21 @@ final class AppState {
             let audioData: Data
             do {
                 audioData = try recorder.stopRecording()
+            } catch AudioRecorderError.discardedTooShort {
+                #if DEBUG
+                log.info("Grabación descartada — muy corta o sin voz detectable")
+                #endif
+                recorder.onChunk = nil
+                endLiveModeDiscarding()
+                if config.soundFeedback {
+                    Self.playSound("Pop")
+                }
+                status = .idle
+                return
             } catch {
                 log.error("Error al detener grabación: \(error.localizedDescription)")
+                recorder.onChunk = nil
+                endLiveModeDiscarding()
                 status = .error(error.localizedDescription)
                 if config.soundFeedback {
                     Self.playSound("Basso")
@@ -354,7 +374,39 @@ final class AppState {
             #if DEBUG
             log.info("Grabación detenida — \(audioData.count) bytes de audio")
             #endif
+            recorder.onChunk = nil
             status = .transcribing
+
+            if liveModeActive {
+                let finalEvent = await awaitLiveFinal(timeoutMs: 4000)
+                liveTranscriptionService.disconnect()
+                #if DEBUG
+                log.info("Live: al finalizar — didInject=\(self.axInjector.didInjectAnything, privacy: .public), degraded=\(self.axInjector.sessionDegraded, privacy: .public), gotFinal=\(finalEvent != nil, privacy: .public)")
+                #endif
+
+                if case .final(let text, let durationMs, _) = finalEvent,
+                   axInjector.didInjectAnything, !axInjector.sessionDegraded {
+                    // El texto en vivo ya está insertado — el final puede diferir
+                    // levemente del último parcial, así que se aplica una vez más.
+                    axInjector.replaceLiveText(with: text)
+                    lastTranscription = text
+                    config.addTranscription(TranscriptionEntry(
+                        text: text, serverName: server.name, durationMs: durationMs
+                    ))
+                    axInjector.reset()
+                    liveModeActive = false
+                    status = .success
+                    try? await Task.sleep(for: .seconds(2))
+                    if status == .success { status = .idle }
+                    return
+                }
+
+                // Modo live activo pero sin texto sostenido (cero parciales,
+                // sesión degradada o timeout) — cae al flujo batch de siempre
+                // usando el audio completo que ya se capturó igual.
+                axInjector.reset()
+                liveModeActive = false
+            }
 
             do {
                 let response = try await transcriptionService.transcribe(
@@ -390,6 +442,105 @@ final class AppState {
                 if case .error = status { status = .idle }
             }
         }
+    }
+
+    // MARK: - Live transcription
+
+    /// Backend Parakeet activo (local o remoto) — solo ese backend soporta
+    /// streaming; con Whisper el modo live simplemente no se activa.
+    private var activeBackendIsParakeet: Bool {
+        let modelId = config.activeServerIsLocal ? config.localServerModelId : serverCurrentModel
+        return supportedModels.first(where: { $0.id == modelId })?.backend == "parakeet"
+    }
+
+    private var liveModeEligible: Bool {
+        config.liveTranscriptionEnabled && config.dictationMode == .raw && activeBackendIsParakeet
+    }
+
+    /// Se llama justo después de que el motor de audio arranca: fija el
+    /// campo de texto objetivo (si es elegible y AX lo permite) y conecta
+    /// el WebSocket de streaming. Si algo no aplica, no hace nada — el
+    /// dictado sigue como el flujo batch de siempre.
+    private func beginLiveModeIfEligible() {
+        liveModeActive = false
+        recorder.onChunk = nil
+
+        #if DEBUG
+        log.info("Live: eligible=\(self.liveModeEligible, privacy: .public) (enabled=\(self.config.liveTranscriptionEnabled, privacy: .public), raw=\(self.config.dictationMode == .raw, privacy: .public), parakeet=\(self.activeBackendIsParakeet, privacy: .public))")
+        #endif
+        guard liveModeEligible else { return }
+        let locked = axInjector.probeAndLock()
+        #if DEBUG
+        log.info("Live: probeAndLock=\(locked, privacy: .public)")
+        #endif
+        guard locked else { return }
+
+        liveModeActive = true
+        liveTranscriptionService.onEvent = { [weak self] event in
+            guard let self else { return }
+            switch event {
+            case .partial(let text):
+                #if DEBUG
+                log.info("Live: partial (\(text.count, privacy: .public) chars)")
+                #endif
+                DispatchQueue.main.async { self.axInjector.replaceLiveText(with: text) }
+            case .final(let text, _, _):
+                #if DEBUG
+                log.info("Live: final (\(text.count, privacy: .public) chars)")
+                #endif
+                DispatchQueue.main.async {
+                    self.liveFinalContinuation?.resume(returning: event)
+                    self.liveFinalContinuation = nil
+                }
+            case .error(let detail):
+                #if DEBUG
+                log.error("Live: error del servidor — \(detail, privacy: .public)")
+                #endif
+                DispatchQueue.main.async {
+                    self.liveFinalContinuation?.resume(returning: event)
+                    self.liveFinalContinuation = nil
+                }
+            case .closed:
+                #if DEBUG
+                log.info("Live: socket cerrado")
+                #endif
+                DispatchQueue.main.async {
+                    self.liveFinalContinuation?.resume(returning: event)
+                    self.liveFinalContinuation = nil
+                }
+            }
+        }
+        liveTranscriptionService.connect(server: config.activeServer)
+        recorder.onChunk = { [weak self] data in
+            self?.liveTranscriptionService.sendChunk(data)
+        }
+    }
+
+    /// Pide el resultado final de la sesión live y espera a que llegue (con
+    /// timeout, por si el servidor no responde a "stop").
+    private func awaitLiveFinal(timeoutMs: Int) async -> LiveTranscriptionService.Event? {
+        liveTranscriptionService.sendStop()
+        return await withCheckedContinuation { continuation in
+            liveFinalContinuation = continuation
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(timeoutMs))
+                if let pending = self.liveFinalContinuation {
+                    self.liveFinalContinuation = nil
+                    pending.resume(returning: nil)
+                }
+            }
+        }
+    }
+
+    /// Cierra una sesión live sin usar su resultado (cancelación, o la
+    /// grabación completa se descartó) y borra cualquier texto ya insertado.
+    private func endLiveModeDiscarding() {
+        guard liveModeActive else { return }
+        liveTranscriptionService.sendStop()
+        liveTranscriptionService.disconnect()
+        axInjector.clearInjectedText()
+        axInjector.reset()
+        liveModeActive = false
     }
 
     /// Retain the sound object so ARC doesn't deallocate it mid-playback.

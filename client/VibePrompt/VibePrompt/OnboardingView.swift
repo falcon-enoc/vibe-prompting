@@ -269,7 +269,7 @@ struct OnboardingView: View {
                 permissionRow(
                     icon: "hand.raised.fill",
                     title: "Accesibilidad",
-                    description: "Para detectar Right \u{2318} y pegar texto automáticamente",
+                    description: "Para detectar Right \u{2318}, pegar texto automáticamente y escribir en vivo mientras dictas",
                     granted: hasAccessibilityPermission,
                     action: requestAccessibilityPermission
                 )

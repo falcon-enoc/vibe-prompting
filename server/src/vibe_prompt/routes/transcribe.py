@@ -16,6 +16,12 @@ router = APIRouter()
 
 TARGET_SAMPLE_RATE = 16000
 
+# Respaldo del lado servidor al filtro del cliente: descarta audio demasiado
+# corto o sin energía de voz antes de tocar el backend (lo que dispara la
+# carga del modelo si estaba descargado).
+MIN_DURATION_MS = 400
+MIN_ENERGY_DB = -45
+
 _LANG_RE = re.compile(r"^[a-z]{2}$")
 
 
@@ -124,6 +130,15 @@ async def transcribe(
 
     if len(audio_f32) == 0:
         raise HTTPException(status_code=422, detail="Audio vacío después de decodificar")
+
+    duration_ms = len(audio_f32) / TARGET_SAMPLE_RATE * 1000
+    if duration_ms < MIN_DURATION_MS:
+        raise HTTPException(status_code=422, detail="Audio demasiado corto para transcribir")
+
+    rms = float(np.sqrt(np.mean(np.square(audio_f32))))
+    db = 20 * np.log10(max(rms, 1e-6))
+    if db < MIN_ENERGY_DB:
+        raise HTTPException(status_code=422, detail="Audio sin contenido de voz detectable (silencio)")
 
     backend = request.app.state.stt_backend
     if backend is None:

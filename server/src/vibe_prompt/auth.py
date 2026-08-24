@@ -118,18 +118,18 @@ def _is_localhost(request: Request) -> bool:
     return client.host in ("127.0.0.1", "::1", "localhost")
 
 
-async def require_api_key(
-    x_api_key: Annotated[str | None, Header(alias="X-API-Key")] = None,
-    request: Request = None,
-) -> int:
+async def _authenticate(x_api_key: str | None, client_host: str | None, settings: Settings) -> int:
+    """Core API-key check, shared by the HTTP dependency and the websocket route
+    (WebSocket isn't a Request, so it can't use require_api_key's Depends/Header)."""
+    is_localhost = client_host in ("127.0.0.1", "::1", "localhost")
+
     # Allow localhost requests without API key (or with empty key)
-    if (x_api_key is None or x_api_key.strip() == "") and _is_localhost(request):
+    if (x_api_key is None or x_api_key.strip() == "") and is_localhost:
         return 0
     if x_api_key is None or x_api_key.strip() == "":
         raise HTTPException(status_code=401, detail="Missing X-API-Key header")
 
     key_hash = _hash_key(x_api_key)
-    settings: Settings = request.app.state.settings
     db_path = settings.API_KEY_DB
 
     async with aiosqlite.connect(db_path) as db:
@@ -149,6 +149,15 @@ async def require_api_key(
         await db.commit()
 
     return row[0]
+
+
+async def require_api_key(
+    x_api_key: Annotated[str | None, Header(alias="X-API-Key")] = None,
+    request: Request = None,
+) -> int:
+    client_host = request.client.host if request.client else None
+    settings: Settings = request.app.state.settings
+    return await _authenticate(x_api_key, client_host, settings)
 
 
 # ---------------------------------------------------------------------------

@@ -69,3 +69,53 @@ class ParakeetMLXBackend:
 
     async def health(self) -> dict:
         return {"model_loaded": self._loaded, "model": self._model_path}
+
+    async def open_stream(self) -> "ParakeetMLXBackend.StreamingSession":
+        """Start a live-transcription session. Acquires the backend lock for the
+        whole session lifetime (released via release_stream(), not here) so a
+        concurrent batch /transcribe call can't interleave with this model
+        instance. Caller must always pair this with release_stream() in a
+        finally block, even on error."""
+        await self._lock.acquire()
+        try:
+            if not self._loaded:
+                await asyncio.to_thread(self._warmup)
+            stream = self._model.transcribe_stream(context_size=(256, 256))
+            await asyncio.to_thread(stream.__enter__)
+            self.last_used = time.time()
+            return ParakeetMLXBackend.StreamingSession(self, stream)
+        except Exception:
+            self._lock.release()
+            raise
+
+    def release_stream(self) -> None:
+        """Release the lock acquired by open_stream(). Must be called exactly
+        once per open_stream(), after the session's close() has run."""
+        self._lock.release()
+
+    class StreamingSession:
+        """One live-transcription session bound to a locked ParakeetMLXBackend.
+        Created only via ParakeetMLXBackend.open_stream()."""
+
+        def __init__(self, backend: "ParakeetMLXBackend", stream) -> None:
+            self._backend = backend
+            self._stream = stream
+
+        async def add_chunk(self, pcm_f32: np.ndarray) -> str:
+            """Feed one chunk of mono float32 16kHz PCM, return the current
+            best merged transcript (finalized + in-progress draft text)."""
+            audio_mx = mx.array(pcm_f32, dtype=mx.float32)
+            text = await asyncio.to_thread(self._add_chunk_sync, audio_mx)
+            self._backend.last_used = time.time()
+            return text
+
+        def _add_chunk_sync(self, audio_mx) -> str:
+            self._stream.add_audio(audio_mx)
+            return self._stream.result.text
+
+        @property
+        def current_text(self) -> str:
+            return self._stream.result.text
+
+        async def close(self) -> None:
+            await asyncio.to_thread(self._stream.__exit__, None, None, None)

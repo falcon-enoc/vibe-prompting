@@ -1,17 +1,25 @@
 from __future__ import annotations
 import io
+import math
+import struct
 import wave
 
 import pytest
 
 
-def _make_wav_bytes(num_frames: int = 160) -> bytes:
+def _make_wav_bytes(num_frames: int = 8000, amplitude: int = 10000) -> bytes:
+    """500ms 440Hz tone by default — long and loud enough to clear the
+    server's minimum-duration/energy gate in routes/transcribe.py."""
     buf = io.BytesIO()
     with wave.open(buf, "wb") as wf:
         wf.setnchannels(1)
         wf.setsampwidth(2)
         wf.setframerate(16000)
-        wf.writeframes(b"\x00\x00" * num_frames)
+        samples = [
+            int(amplitude * math.sin(2 * math.pi * 440 * i / 16000))
+            for i in range(num_frames)
+        ]
+        wf.writeframes(struct.pack(f"<{num_frames}h", *samples))
     return buf.getvalue()
 
 
