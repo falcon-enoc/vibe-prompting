@@ -1,6 +1,7 @@
 """Parakeet TDT backend using parakeet-mlx on Apple Silicon."""
 from __future__ import annotations
 import asyncio
+import gc
 import logging
 import time
 import numpy as np
@@ -37,7 +38,20 @@ class ParakeetMLXBackend:
     def unload(self) -> None:
         self._model = None
         self._loaded = False
+        # MLX keeps freed Metal buffers in a cache; without this the GPU memory
+        # stays resident (GBs) even after the model is gone.
+        gc.collect()
+        mx.clear_cache()
         logger.info("Parakeet model unloaded from memory")
+
+    def trim_cache(self) -> None:
+        """Release MLX's cached Metal buffers while the model stays loaded.
+        Skipped if a transcription/stream holds the lock."""
+        if self._lock.locked():
+            return
+        cache_mb = mx.get_cache_memory() / 2**20
+        mx.clear_cache()
+        logger.info(f"MLX cache trimmed ({cache_mb:.0f} MB released)")
 
     def _transcribe_sync(self, audio: np.ndarray) -> str:
         if not self._loaded:
