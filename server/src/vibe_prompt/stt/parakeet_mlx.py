@@ -7,6 +7,7 @@ import time
 import numpy as np
 import mlx.core as mx
 from parakeet_mlx import from_pretrained
+from parakeet_mlx.alignment import sentences_to_result, tokens_to_sentences
 from parakeet_mlx.audio import get_logmel
 from .protocol import TranscribeResult
 
@@ -115,17 +116,24 @@ class ParakeetMLXBackend:
             self._backend = backend
             self._stream = stream
 
-        async def add_chunk(self, pcm_f32: np.ndarray) -> str:
-            """Feed one chunk of mono float32 16kHz PCM, return the current
-            best merged transcript (finalized + in-progress draft text)."""
+        async def add_chunk(self, pcm_f32: np.ndarray) -> tuple[str, str]:
+            """Feed one chunk of mono float32 16kHz PCM. Returns
+            (stable_text, text): `stable_text` covers only the finalized
+            tokens the decoder will never revise, `text` is the full
+            best-effort transcript including the still-mutable in-progress
+            draft tail (which gets fully re-decoded on every chunk and can
+            flip wording/language until it finalizes)."""
             audio_mx = mx.array(pcm_f32, dtype=mx.float32)
-            text = await asyncio.to_thread(self._add_chunk_sync, audio_mx)
+            result = await asyncio.to_thread(self._add_chunk_sync, audio_mx)
             self._backend.last_used = time.time()
-            return text
+            return result
 
-        def _add_chunk_sync(self, audio_mx) -> str:
+        def _add_chunk_sync(self, audio_mx) -> tuple[str, str]:
             self._stream.add_audio(audio_mx)
-            return self._stream.result.text
+            stable_text = sentences_to_result(
+                tokens_to_sentences(self._stream.finalized_tokens)
+            ).text
+            return stable_text, self._stream.result.text
 
         @property
         def current_text(self) -> str:
