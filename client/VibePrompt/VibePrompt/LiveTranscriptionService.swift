@@ -13,7 +13,11 @@ private let log = Logger(subsystem: "cl.enocfalcon.vibeprompt", category: "LiveT
 /// de `.final`, sin necesitar saber la causa exacta.
 final class LiveTranscriptionService {
     enum Event {
-        case partial(String)
+        /// `stableText` cubre solo los tokens finalizados (el modelo nunca
+        /// los revisa); `text` es el mejor intento completo, incluyendo la
+        /// cola en borrador que se re-decodifica en cada chunk y puede
+        /// cambiar de palabras o de idioma hasta que finaliza.
+        case partial(text: String, stableText: String)
         case final(text: String, durationMs: Double, processingMs: Double)
         case error(String)
         case closed
@@ -122,7 +126,10 @@ final class LiveTranscriptionService {
 
         switch type {
         case "partial":
-            onEvent?(.partial(obj["text"] as? String ?? ""))
+            onEvent?(.partial(
+                text: obj["text"] as? String ?? "",
+                stableText: obj["stable_text"] as? String ?? ""
+            ))
         case "final":
             onEvent?(.final(
                 text: obj["text"] as? String ?? "",

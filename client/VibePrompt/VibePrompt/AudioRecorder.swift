@@ -39,6 +39,11 @@ final class AudioRecorder {
     /// PCM Int16LE mono 16kHz de cada buffer capturado, para streaming en vivo.
     /// Se invoca en el mismo hilo del tap de audio (no en main).
     var onChunk: ((Data) -> Void)?
+    /// Se invoca en main si el engine no logra reiniciarse tras un cambio de
+    /// configuración de audio a mitad de grabación (ver `restartEngine`) —
+    /// sin esto el estado quedaba en "Grabando..." indefinidamente con el
+    /// tap muerto, sin capturar nada más ni avisar al usuario.
+    var onEngineFailure: ((String) -> Void)?
     private var engine = AVAudioEngine()
     private var samples: [Int16] = []
     private let sampleRate: Double = 16000
@@ -212,7 +217,12 @@ final class AudioRecorder {
             queue: .main
         ) { [weak self] _ in
             guard let self, self.isRunning else { return }
-            try? self.restartEngine()
+            do {
+                try self.restartEngine()
+            } catch {
+                log.error("Fallo al reiniciar el engine tras cambio de configuración: \(error.localizedDescription, privacy: .public)")
+                self.onEngineFailure?(error.localizedDescription)
+            }
         }
     }
 
@@ -377,10 +387,14 @@ final class AudioRecorder {
         engine.stop()
         activeConverter = nil
         activeConvertedBuffer = nil
-        // Discard samples from before the format change — they're typically
-        // zeros from the A2DP→HFP transition on Bluetooth devices.
-        samples = []
-        log.debug("Engine restarting (format change) — samples cleared")
+        // Los samples ya capturados (antes del cambio de formato) se
+        // conservan: descartarlos aquí borraba de golpe todo lo grabado
+        // hasta ese punto (p.ej. el cambio A2DP→HFP de unos AirPods a mitad
+        // de grabación), produciendo transcripciones truncadas/incompletas.
+        // El corto tramo de transición puede quedar como una pequeña ráfaga
+        // de silencio/ruido en medio del audio, pero eso es preferible a
+        // perder la grabación completa hecha hasta ese momento.
+        log.debug("Engine restarting (format change) — samples preservados: \(self.samples.count, privacy: .public)")
         try startEngine()
     }
 
@@ -414,9 +428,25 @@ final class AudioRecorder {
         }
 
         let durationMs = Double(samples.count) / sampleRate * 1000
-        let sumSquares = samples.reduce(0.0) { $0 + Double($1) * Double($1) }
-        let rms = (sumSquares / Double(samples.count)).squareRoot() / 32768.0
-        let db = 20 * log10(max(rms, 1e-6))
+
+        // RMS de la ventana más fuerte (100ms), no del clip completo: el
+        // silencio de "colchón" al inicio/fin mientras se mantiene la tecla
+        // apretada diluye el promedio global en grabaciones largas y
+        // descartaba grabaciones válidas por caer bajo minEnergyDb.
+        let windowSize = max(1, Int(sampleRate * 0.1))
+        var maxWindowRms: Double = 0
+        var windowStart = 0
+        while windowStart < samples.count {
+            let windowEnd = min(windowStart + windowSize, samples.count)
+            var sumSquares: Double = 0
+            for i in windowStart..<windowEnd {
+                sumSquares += Double(samples[i]) * Double(samples[i])
+            }
+            let windowRms = (sumSquares / Double(windowEnd - windowStart)).squareRoot() / 32768.0
+            maxWindowRms = max(maxWindowRms, windowRms)
+            windowStart = windowEnd
+        }
+        let db = 20 * log10(max(maxWindowRms, 1e-6))
 
         guard durationMs >= minDurationMs, db >= minEnergyDb else {
             log.debug("stopRecording: descartada — duration: \(durationMs, privacy: .public)ms, db: \(db, privacy: .public)")

@@ -6,6 +6,7 @@ from pathlib import Path
 
 import aiosqlite
 import pytest
+from parakeet_mlx.alignment import AlignedToken
 from starlette.testclient import TestClient, WebSocketDisconnect
 
 from vibe_prompt.main import create_app
@@ -44,6 +45,15 @@ class _FakeStreamingParakeet:
     @property
     def result(self) -> _FakeResult:
         return _FakeResult(f"chunk-{self._chunks}" if self._chunks else "")
+
+    @property
+    def finalized_tokens(self) -> list[AlignedToken]:
+        # Simulates the real decoder: everything but the most recent chunk
+        # is finalized, the last one is still a mutable draft.
+        return [
+            AlignedToken(id=i, text=f"stable-{i}", start=float(i), duration=1.0)
+            for i in range(1, self._chunks)
+        ]
 
 
 class _FakeModel:
@@ -198,11 +208,13 @@ def test_stream_partial_and_final():
         msg1 = ws.receive_json()
         assert msg1["type"] == "partial"
         assert msg1["text"] == "chunk-1"
+        assert msg1["stable_text"] == ""
 
         ws.send_bytes(_pcm_chunk())
         msg2 = ws.receive_json()
         assert msg2["type"] == "partial"
         assert msg2["text"] == "chunk-2"
+        assert msg2["stable_text"] == "stable-1"
 
         ws.send_text("stop")
         final = ws.receive_json()
