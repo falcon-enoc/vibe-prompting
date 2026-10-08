@@ -1,11 +1,13 @@
 """Parakeet TDT backend using parakeet-mlx on Apple Silicon."""
 from __future__ import annotations
 import asyncio
+import gc
 import logging
 import time
 import numpy as np
 import mlx.core as mx
 from parakeet_mlx import from_pretrained
+from parakeet_mlx.alignment import sentences_to_result, tokens_to_sentences
 from parakeet_mlx.audio import get_logmel
 from .protocol import TranscribeResult
 
@@ -37,7 +39,20 @@ class ParakeetMLXBackend:
     def unload(self) -> None:
         self._model = None
         self._loaded = False
+        # MLX keeps freed Metal buffers in a cache; without this the GPU memory
+        # stays resident (GBs) even after the model is gone.
+        gc.collect()
+        mx.clear_cache()
         logger.info("Parakeet model unloaded from memory")
+
+    def trim_cache(self) -> None:
+        """Release MLX's cached Metal buffers while the model stays loaded.
+        Skipped if a transcription/stream holds the lock."""
+        if self._lock.locked():
+            return
+        cache_mb = mx.get_cache_memory() / 2**20
+        mx.clear_cache()
+        logger.info(f"MLX cache trimmed ({cache_mb:.0f} MB released)")
 
     def _transcribe_sync(self, audio: np.ndarray) -> str:
         if not self._loaded:
@@ -101,17 +116,24 @@ class ParakeetMLXBackend:
             self._backend = backend
             self._stream = stream
 
-        async def add_chunk(self, pcm_f32: np.ndarray) -> str:
-            """Feed one chunk of mono float32 16kHz PCM, return the current
-            best merged transcript (finalized + in-progress draft text)."""
+        async def add_chunk(self, pcm_f32: np.ndarray) -> tuple[str, str]:
+            """Feed one chunk of mono float32 16kHz PCM. Returns
+            (stable_text, text): `stable_text` covers only the finalized
+            tokens the decoder will never revise, `text` is the full
+            best-effort transcript including the still-mutable in-progress
+            draft tail (which gets fully re-decoded on every chunk and can
+            flip wording/language until it finalizes)."""
             audio_mx = mx.array(pcm_f32, dtype=mx.float32)
-            text = await asyncio.to_thread(self._add_chunk_sync, audio_mx)
+            result = await asyncio.to_thread(self._add_chunk_sync, audio_mx)
             self._backend.last_used = time.time()
-            return text
+            return result
 
-        def _add_chunk_sync(self, audio_mx) -> str:
+        def _add_chunk_sync(self, audio_mx) -> tuple[str, str]:
             self._stream.add_audio(audio_mx)
-            return self._stream.result.text
+            stable_text = sentences_to_result(
+                tokens_to_sentences(self._stream.finalized_tokens)
+            ).text
+            return stable_text, self._stream.result.text
 
         @property
         def current_text(self) -> str:

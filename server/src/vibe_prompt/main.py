@@ -64,12 +64,23 @@ async def lifespan(app: FastAPI):
         if settings.IDLE_UNLOAD_MINUTES <= 0:
             return
         timeout = settings.IDLE_UNLOAD_MINUTES * 60
+        trim_interval = 10 * 60
+        last_trim = time.time()
         while True:
             await asyncio.sleep(60)
             backend = app.state.stt_backend
-            if backend is not None and backend.is_loaded() and (time.time() - backend.last_used) > timeout:
+            if backend is None or not backend.is_loaded():
+                last_trim = time.time()
+                continue
+            if (time.time() - backend.last_used) > timeout:
                 logger.info("Idle timeout — unloading model from memory")
                 backend.unload()
+            elif time.time() - last_trim >= trim_interval:
+                # Model stays warm: periodically drop MLX's Metal buffer cache
+                trim = getattr(backend, "trim_cache", None)
+                if trim is not None:
+                    trim()
+                last_trim = time.time()
 
     idle_task = asyncio.create_task(_idle_checker())
     try:

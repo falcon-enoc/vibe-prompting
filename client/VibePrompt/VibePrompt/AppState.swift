@@ -78,6 +78,13 @@ final class AppState {
         recorder.onLevel = { [weak self] level in
             self?.audioLevel = level
         }
+        recorder.onEngineFailure = { [weak self] message in
+            guard let self, self.status == .recording else { return }
+            log.error("Engine de audio no se pudo recuperar durante la grabación: \(message, privacy: .public)")
+            if self.config.soundFeedback {
+                Self.playSound("Basso")
+            }
+        }
 
         if config.hasCompletedOnboarding {
             performFullSetup()
@@ -479,11 +486,15 @@ final class AppState {
         liveTranscriptionService.onEvent = { [weak self] event in
             guard let self else { return }
             switch event {
-            case .partial(let text):
+            case .partial(_, let stableText):
+                // Solo se inyecta la parte finalizada: la cola en borrador
+                // se re-decodifica en cada chunk y puede cambiar de palabras
+                // o de idioma, así que mostrarla haría que el texto ya
+                // insertado se reescribiera constantemente (#413).
                 #if DEBUG
-                log.info("Live: partial (\(text.count, privacy: .public) chars)")
+                log.info("Live: partial (\(stableText.count, privacy: .public) stable chars)")
                 #endif
-                DispatchQueue.main.async { self.axInjector.replaceLiveText(with: text) }
+                DispatchQueue.main.async { self.axInjector.replaceLiveText(with: stableText) }
             case .final(let text, _, _):
                 #if DEBUG
                 log.info("Live: final (\(text.count, privacy: .public) chars)")

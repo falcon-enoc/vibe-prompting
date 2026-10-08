@@ -64,8 +64,8 @@ async def transcribe_stream(websocket: WebSocket) -> None:
 
             audio_f32 = np.frombuffer(audio_bytes, dtype="<i2").astype(np.float32) / 32768.0
             total_samples += len(audio_f32)
-            text = await session.add_chunk(audio_f32)
-            await websocket.send_json({"type": "partial", "text": text})
+            stable_text, text = await session.add_chunk(audio_f32)
+            await websocket.send_json({"type": "partial", "text": text, "stable_text": stable_text})
     except WebSocketDisconnect:
         pass
     except Exception as e:
