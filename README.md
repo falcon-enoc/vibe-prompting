@@ -13,6 +13,7 @@ Dictado local para macOS con Apple Silicon. Transcribe voz a texto usando Parake
   - [Grabaciones muy cortas o silenciosas](#grabaciones-muy-cortas-o-silenciosas)
 - [Permisos macOS](#permisos-macos)
 - [Modelo](#modelo)
+- [Licencia](#licencia)
 
 ## Requisitos
 
@@ -95,3 +96,7 @@ de enviarse — no se transcribe ni se muestra error, solo un sonido corto y vue
 ## Modelo
 
 Parakeet TDT 0.6B v3 -- 600M parametros, 25 idiomas europeos. Corre localmente en Apple Neural Engine via MLX.
+
+## Licencia
+
+Distribuido bajo licencia MIT. Ver [LICENSE](LICENSE).
